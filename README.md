@@ -101,8 +101,8 @@ That's it — the app should now be running! 🎉
 - **"Gradle sync failed" or red error banners**: click the **Sync Project with Gradle Files**
   button (an elephant icon with a small refresh arrow) in the toolbar, then wait for it to finish.
   Make sure you have an internet connection, since the first sync downloads dependencies.
-- **No devices in the dropdown**: go back to Step 3 and make sure you've either created a
-  virtual device or plugged in and authorised a real phone.
+- **No devices in the dropdown**: go back to Step 3 and make sure you've created a
+  virtual device.
 - **Build errors after cloning**: try **File → Invalidate Caches / Restart...** and choose
   **Invalidate and Restart**, then let Gradle sync again.
 - **App crashes immediately**: make sure you selected a system image with **Android 8.0 (API 26)**
