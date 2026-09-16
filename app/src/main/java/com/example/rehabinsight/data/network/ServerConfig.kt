@@ -13,10 +13,6 @@ object ServerConfig {
             overrideBaseUrl = value.trimEnd('/')
         }
 
-    fun setBaseUrl(url: String) {
-        baseUrl = url
-    }
-
     fun resetToDefault() {
         overrideBaseUrl = null
     }
