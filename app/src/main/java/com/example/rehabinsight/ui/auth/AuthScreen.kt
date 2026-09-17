@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -57,12 +58,13 @@ fun AuthScreen(
     authError: String?,
     onClearError: () -> Unit,
     onLogin: (email: String, password: String) -> Unit,
-    onSignUp: (name: String, email: String, password: String) -> Unit,
+    onSignUp: (name: String, email: String, phone: String, password: String) -> Unit,
     onAdminLoginClick: () -> Unit
 ) {
     var isSignUpMode by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
 
@@ -129,6 +131,20 @@ fun AuthScreen(
                             colors = OutlinedTextFieldDefaults.colors()
                         )
                         Spacer(Modifier.height(16.dp))
+
+                        Text("Phone number (optional)", style = MaterialTheme.typography.bodyMedium, color = RehabTextSecondary)
+                        Spacer(Modifier.height(6.dp))
+                        OutlinedTextField(
+                            value = phone,
+                            onValueChange = { phone = it; onClearError() },
+                            placeholder = { Text("Your phone number") },
+                            leadingIcon = { Icon(Icons.Filled.Phone, contentDescription = null) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(16.dp))
                     }
 
                     Text("Email address", style = MaterialTheme.typography.bodyMedium, color = RehabTextSecondary)
@@ -188,7 +204,7 @@ fun AuthScreen(
                         text = if (isSignUpMode) "Create account" else "Sign in",
                         onClick = {
                             if (isSignUpMode) {
-                                onSignUp(name, email, password)
+                                onSignUp(name, email, phone, password)
                             } else {
                                 onLogin(email, password)
                             }

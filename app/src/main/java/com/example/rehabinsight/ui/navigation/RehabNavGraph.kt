@@ -89,8 +89,10 @@ fun RehabNavGraph() {
                     onLogin = { email, password ->
                         if (viewModel.login(email, password)) goAfterAuth(navController, viewModel)
                     },
-                    onSignUp = { name, email, password ->
-                        if (viewModel.signUp(name, email, password)) goAfterAuth(navController, viewModel)
+                    onSignUp = { name, email, phone, password ->
+                        viewModel.signUp(name, email, phone, password) { success ->
+                            if (success) goAfterAuth(navController, viewModel)
+                        }
                     },
                     onAdminLoginClick = { navController.navigate(Routes.ADMIN_LOGIN) }
                 )

@@ -2,6 +2,7 @@ package com.example.rehabinsight.viewmodel
 
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.rehabinsight.data.Admin
 import com.example.rehabinsight.data.Article
 import com.example.rehabinsight.data.Category
@@ -24,13 +25,17 @@ import com.example.rehabinsight.data.Task
 import com.example.rehabinsight.data.TaskCategory
 import com.example.rehabinsight.data.TaskRule
 import com.example.rehabinsight.data.UniversalAppSetting
+import com.example.rehabinsight.data.network.signUpClient
 import com.example.rehabinsight.ui.model.ChecklistItem
 import com.example.rehabinsight.ui.theme.RehabTextMuted
 import com.example.rehabinsight.ui.theme.color
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
@@ -100,54 +105,63 @@ class AppViewModel : ViewModel() {
     // Auth (Client / Admin)
     // ---------------------------------------------------------------------
 
-    fun signUp(name: String, email: String, password: String): Boolean {
+    fun signUp(name: String, email: String, phone: String, password: String, onResult: (Boolean) -> Unit) {
         val trimmedEmail = email.trim()
+        val trimmedPhone = phone.trim().ifBlank { null }
         if (name.isBlank() || trimmedEmail.isBlank() || password.isBlank()) {
             _uiState.update { it.copy(authError = "Please fill in every field.") }
-            return false
-        }
-        if (_uiState.value.clients.any { it.email.equals(trimmedEmail, ignoreCase = true) }) {
-            _uiState.update { it.copy(authError = "An account with that email already exists.") }
-            return false
+            onResult(false)
+            return
         }
 
         val nameParts = name.trim().split(" ", limit = 2)
         val firstName = nameParts.getOrElse(0) { name.trim() }
         val lastName = nameParts.getOrElse(1) { "" }
 
-        val state = _uiState.value
-        val newClientId = state.nextClientId
-        val newClient = Client(
-            clientId = newClientId,
-            adminId = null,
-            firstName = firstName,
-            lastName = lastName,
-            email = trimmedEmail,
-            passwordHash = password
-        )
-        val newQuestions = state.questionTemplates.mapIndexed { index, template ->
-            DailyQuestion(
-                questionId = state.nextDailyQuestionId + index,
-                categoryId = template.categoryId,
-                clientId = newClientId,
-                questionOrder = template.questionOrder,
-                questionText = template.questionText
-            )
-        }
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                signUpClient(firstName, lastName, trimmedEmail, trimmedPhone, password)
+            }
 
-        _uiState.update {
-            it.copy(
-                clients = it.clients + newClient,
-                clientStreaks = it.clientStreaks + ClientStreak(clientId = newClientId),
-                dailyQuestions = it.dailyQuestions + newQuestions,
-                currentClientId = newClientId,
-                authError = null,
-                isAdminMode = false,
-                nextClientId = newClientId + 1,
-                nextDailyQuestionId = it.nextDailyQuestionId + newQuestions.size
-            )
+            if (result.success && result.clientId != null) {
+                val newClientId = result.clientId
+                val state = _uiState.value
+                val newClient = Client(
+                    clientId = newClientId,
+                    adminId = null,
+                    firstName = firstName,
+                    lastName = lastName,
+                    email = trimmedEmail,
+                    phone = trimmedPhone,
+                    passwordHash = password
+                )
+                val newQuestions = state.questionTemplates.mapIndexed { index, template ->
+                    DailyQuestion(
+                        questionId = state.nextDailyQuestionId + index,
+                        categoryId = template.categoryId,
+                        clientId = newClientId,
+                        questionOrder = template.questionOrder,
+                        questionText = template.questionText
+                    )
+                }
+
+                _uiState.update {
+                    it.copy(
+                        clients = it.clients + newClient,
+                        clientStreaks = it.clientStreaks + ClientStreak(clientId = newClientId),
+                        dailyQuestions = it.dailyQuestions + newQuestions,
+                        currentClientId = newClientId,
+                        authError = null,
+                        isAdminMode = false,
+                        nextDailyQuestionId = it.nextDailyQuestionId + newQuestions.size
+                    )
+                }
+                onResult(true)
+            } else {
+                _uiState.update { it.copy(authError = result.errorMessage ?: "Sign up failed.") }
+                onResult(false)
+            }
         }
-        return true
     }
 
     fun login(email: String, password: String): Boolean {
