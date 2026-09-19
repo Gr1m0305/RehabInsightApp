@@ -11,7 +11,7 @@ data class SignUpResult(
     val errorMessage: String?
 )
 
-private fun postJson(urlString: String, json: JSONObject): Pair<HttpURLConnection, String?> {
+internal fun postJson(urlString: String, json: JSONObject): Pair<HttpURLConnection, String?> {
     val connection = URL(urlString).openConnection() as HttpURLConnection
     connection.instanceFollowRedirects = false
     connection.requestMethod = "POST"

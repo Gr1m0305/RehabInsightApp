@@ -25,6 +25,8 @@ import com.example.rehabinsight.data.Task
 import com.example.rehabinsight.data.TaskCategory
 import com.example.rehabinsight.data.TaskRule
 import com.example.rehabinsight.data.UniversalAppSetting
+import com.example.rehabinsight.data.network.createDailyCheckin
+import com.example.rehabinsight.data.network.fetchStreakMilestones
 import com.example.rehabinsight.data.network.signUpClient
 import com.example.rehabinsight.ui.model.ChecklistItem
 import com.example.rehabinsight.ui.theme.RehabTextMuted
@@ -98,6 +100,21 @@ class AppViewModel : ViewModel() {
 
     private val _uiState = MutableStateFlow(RehabUiState())
     val uiState: StateFlow<RehabUiState> = _uiState.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            val milestones = withContext(Dispatchers.IO) { fetchStreakMilestones() }
+            if (milestones.isNotEmpty()) {
+                _uiState.update {
+                    it.copy(
+                        streakMilestones = milestones.map { dto ->
+                            StreakMilestone(dto.milestoneId, dto.days, dto.message)
+                        }
+                    )
+                }
+            }
+        }
+    }
 
     private fun today(): LocalDate = LocalDate.now()
 
@@ -234,41 +251,49 @@ class AppViewModel : ViewModel() {
             15 to (Goal.PHYSICAL_HEALTH in answers.goals).toInt()
         )
 
-        val checkinId = state.nextCheckinId
-        val checkin = DailyCheckin(checkinId, clientId, today(), completedAt = LocalDateTime.now())
+        val completedAt = LocalDateTime.now()
 
-        var responseId = state.nextResponseId
-        val newResponses = mutableListOf<Response>()
-        rawAnswers.forEach { (order, value) ->
-            val question = questionsByOrder[order] ?: return@forEach
-            newResponses += Response(responseId, question.questionId, checkinId, value)
-            responseId++
-        }
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                createDailyCheckin(clientId, today(), completedAt)
+            }
 
-        val taskIds = ChecklistGenerator.generateTaskIds(answers)
+            val checkinId = result.checkinId ?: state.nextCheckinId
+            val checkin = DailyCheckin(checkinId, clientId, today(), completedAt = completedAt)
 
-        var nextClientTaskId = state.nextClientTaskId
-        val now = LocalDateTime.now()
-        val newClientTasks = taskIds.map { taskId ->
-            ClientTask(
-                clientTaskId = nextClientTaskId++,
-                clientId = clientId,
-                taskId = taskId,
-                assignedAt = now,
-                dueDate = today(),
-                status = ClientTaskStatus.PENDING
-            )
-        }
+            var responseId = state.nextResponseId
+            val newResponses = mutableListOf<Response>()
+            rawAnswers.forEach { (order, value) ->
+                val question = questionsByOrder[order] ?: return@forEach
+                newResponses += Response(responseId, question.questionId, checkinId, value)
+                responseId++
+            }
 
-        _uiState.update {
-            it.copy(
-                dailyCheckins = it.dailyCheckins + checkin,
-                responses = it.responses + newResponses,
-                clientTasks = it.clientTasks + newClientTasks,
-                nextCheckinId = checkinId + 1,
-                nextResponseId = responseId,
-                nextClientTaskId = nextClientTaskId
-            )
+            val taskIds = ChecklistGenerator.generateTaskIds(answers)
+
+            var nextClientTaskId = state.nextClientTaskId
+            val now = LocalDateTime.now()
+            val newClientTasks = taskIds.map { taskId ->
+                ClientTask(
+                    clientTaskId = nextClientTaskId++,
+                    clientId = clientId,
+                    taskId = taskId,
+                    assignedAt = now,
+                    dueDate = today(),
+                    status = ClientTaskStatus.PENDING
+                )
+            }
+
+            _uiState.update {
+                it.copy(
+                    dailyCheckins = it.dailyCheckins + checkin,
+                    responses = it.responses + newResponses,
+                    clientTasks = it.clientTasks + newClientTasks,
+                    nextCheckinId = checkinId + 1,
+                    nextResponseId = responseId,
+                    nextClientTaskId = nextClientTaskId
+                )
+            }
         }
     }
 
@@ -373,25 +398,33 @@ class AppViewModel : ViewModel() {
             checkIn.pain?.let { put(106, GuidanceEngine.answerValue(it)) }
         }
 
-        val checkinId = state.nextCheckinId
-        val checkinRow = DailyCheckin(checkinId, clientId, checkIn.date, completedAt = LocalDateTime.now())
+        val completedAt = LocalDateTime.now()
 
-        var responseId = state.nextResponseId
-        val newResponses = mutableListOf<Response>()
-        rawAnswers.forEach { (order, value) ->
-            val question = questionsByOrder[order] ?: return@forEach
-            newResponses += Response(responseId, question.questionId, checkinId, value)
-            responseId++
-        }
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                createDailyCheckin(clientId, checkIn.date, completedAt)
+            }
 
-        _uiState.update {
-            it.copy(
-                dailyCheckins = it.dailyCheckins + checkinRow,
-                responses = it.responses + newResponses,
-                nextCheckinId = checkinId + 1,
-                nextResponseId = responseId,
-                latestCheckIn = checkIn
-            )
+            val checkinId = result.checkinId ?: state.nextCheckinId
+            val checkinRow = DailyCheckin(checkinId, clientId, checkIn.date, completedAt = completedAt)
+
+            var responseId = state.nextResponseId
+            val newResponses = mutableListOf<Response>()
+            rawAnswers.forEach { (order, value) ->
+                val question = questionsByOrder[order] ?: return@forEach
+                newResponses += Response(responseId, question.questionId, checkinId, value)
+                responseId++
+            }
+
+            _uiState.update {
+                it.copy(
+                    dailyCheckins = it.dailyCheckins + checkinRow,
+                    responses = it.responses + newResponses,
+                    nextCheckinId = checkinId + 1,
+                    nextResponseId = responseId,
+                    latestCheckIn = checkIn
+                )
+            }
         }
     }
 
