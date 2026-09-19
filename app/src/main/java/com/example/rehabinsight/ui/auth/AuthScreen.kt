@@ -136,7 +136,7 @@ fun AuthScreen(
                         Spacer(Modifier.height(6.dp))
                         OutlinedTextField(
                             value = phone,
-                            onValueChange = { phone = it; onClearError() },
+                            onValueChange = { phone = it.filter { c -> c.isDigit() }.take(10); onClearError() },
                             placeholder = { Text("Your phone number") },
                             leadingIcon = { Icon(Icons.Filled.Phone, contentDescription = null) },
                             singleLine = true,

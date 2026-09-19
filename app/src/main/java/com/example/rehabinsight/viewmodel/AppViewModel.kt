@@ -606,6 +606,50 @@ class AppViewModel : ViewModel() {
         }
     }
 
+    fun addLibraryTask(title: String, categoryId: Int) {
+        if (title.isBlank()) return
+        val state = _uiState.value
+        val newTaskId = state.nextTaskId
+        val newTask = Task(taskId = newTaskId, title = title.trim())
+        val newTaskCategory = TaskCategory(categoryId = categoryId, taskId = newTaskId, difficulty = 1)
+        _uiState.update {
+            it.copy(
+                tasks = it.tasks + newTask,
+                taskCategories = it.taskCategories + newTaskCategory,
+                nextTaskId = newTaskId + 1
+            )
+        }
+    }
+
+    fun removeLibraryTask(taskId: Int) {
+        _uiState.update { state ->
+            state.copy(tasks = state.tasks.map { if (it.taskId == taskId) it.copy(isActive = false) else it })
+        }
+    }
+
+    fun assignTaskToClient(clientId: Int, taskId: Int) {
+        val state = _uiState.value
+        val date = today()
+        val alreadyAssigned = state.clientTasks.any {
+            it.clientId == clientId && it.taskId == taskId && it.dueDate == date && it.status != ClientTaskStatus.REMOVED
+        }
+        if (alreadyAssigned) return
+        val newClientTask = ClientTask(
+            clientTaskId = state.nextClientTaskId,
+            clientId = clientId,
+            taskId = taskId,
+            assignedAt = LocalDateTime.now(),
+            dueDate = date,
+            status = ClientTaskStatus.PENDING
+        )
+        _uiState.update {
+            it.copy(
+                clientTasks = it.clientTasks + newClientTask,
+                nextClientTaskId = state.nextClientTaskId + 1
+            )
+        }
+    }
+
     // ---------------------------------------------------------------------
     // Insights (Client-facing Profile + Admin Dashboard)
     // ---------------------------------------------------------------------

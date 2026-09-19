@@ -45,8 +45,8 @@ fun signUpClient(
             put("first_name", firstName)
             put("last_name", lastName)
             put("email", email)
-            put("phone", phone)
-            put("password_hash", password)
+            put("phone", phone ?: "")
+            put("password", password)
         }
 
         var (connection, body) = postJson(CLIENT_SIGNUP_URL, json)

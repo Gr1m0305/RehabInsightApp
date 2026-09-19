@@ -22,16 +22,23 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.automirrored.filled.ListAlt
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Insights
+import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -45,7 +52,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.rehabinsight.data.Category
+import com.example.rehabinsight.data.Client
 import com.example.rehabinsight.data.Task
+import com.example.rehabinsight.ui.tasks.TaskEditorDialog
 import com.example.rehabinsight.ui.theme.RehabBackgroundBottom
 import com.example.rehabinsight.ui.theme.RehabBlue
 import com.example.rehabinsight.ui.theme.RehabDivider
@@ -72,6 +81,10 @@ private val businessInsights = listOf(
 fun AdminDashboardScreen(
     progressSummaries: List<ClientProgressSummary>,
     tasksByCategory: Map<Category, List<Task>>,
+    onAddTask: (String, Int) -> Unit,
+    onUpdateTask: (Int, String, Int) -> Unit,
+    onRemoveTask: (Int) -> Unit,
+    onAssignTask: (Int, Int) -> Unit,
     onLogout: () -> Unit
 ) {
     var section by remember { mutableStateOf(AdminSection.OVERVIEW) }
@@ -109,7 +122,14 @@ fun AdminDashboardScreen(
                 AdminSection.OVERVIEW -> OverviewSection { section = it }
                 AdminSection.USER_PROGRESS -> UserProgressSection(progressSummaries)
                 AdminSection.USER_TRENDS -> UserTrendsSection()
-                AdminSection.TASK_LIBRARY -> TaskLibrarySection(tasksByCategory)
+                AdminSection.TASK_LIBRARY -> TaskLibrarySection(
+                    tasksByCategory = tasksByCategory,
+                    clients = progressSummaries.map { it.client },
+                    onAddTask = onAddTask,
+                    onUpdateTask = onUpdateTask,
+                    onRemoveTask = onRemoveTask,
+                    onAssignTask = onAssignTask
+                )
             }
             Spacer(Modifier.height(32.dp))
         }
@@ -258,37 +278,148 @@ private fun UserTrendsSection() {
 }
 
 @Composable
-private fun TaskLibrarySection(tasksByCategory: Map<Category, List<Task>>) {
-    Spacer(Modifier.height(8.dp))
-    Text(
-        "The master library used to generate & suggest tasks across all users.",
-        style = MaterialTheme.typography.bodyMedium,
-        color = RehabTextSecondary
-    )
-    Spacer(Modifier.height(16.dp))
-    tasksByCategory.forEach { (category, tasks) ->
-        Text(category.name, style = MaterialTheme.typography.labelSmall, color = RehabTextSecondary)
-        Spacer(Modifier.height(6.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            tasks.forEach { task ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color.White, RoundedCornerShape(12.dp))
-                        .padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
+private fun TaskLibrarySection(
+    tasksByCategory: Map<Category, List<Task>>,
+    clients: List<Client>,
+    onAddTask: (String, Int) -> Unit,
+    onUpdateTask: (Int, String, Int) -> Unit,
+    onRemoveTask: (Int) -> Unit,
+    onAssignTask: (Int, Int) -> Unit
+) {
+    val categories = tasksByCategory.keys.toList()
+    var showAddDialog by remember { mutableStateOf(false) }
+    var editingTask by remember { mutableStateOf<Task?>(null) }
+    var assigningTask by remember { mutableStateOf<Task?>(null) }
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Column {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "The master library used to generate & suggest tasks across all users.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = RehabTextSecondary
+            )
+            Spacer(Modifier.height(16.dp))
+            tasksByCategory.forEach { (category, tasks) ->
+                Text(category.name, style = MaterialTheme.typography.labelSmall, color = RehabTextSecondary)
+                Spacer(Modifier.height(6.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    tasks.forEach { task ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color.White, RoundedCornerShape(12.dp))
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .clip(CircleShape)
+                                    .background(category.color)
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Text(task.title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                            IconButton(onClick = { assigningTask = task }) {
+                                Icon(Icons.Filled.PersonAdd, contentDescription = "Assign to client", tint = RehabTextSecondary)
+                            }
+                            IconButton(onClick = { editingTask = task }) {
+                                Icon(Icons.Filled.Edit, contentDescription = "Edit", tint = RehabTextSecondary)
+                            }
+                            IconButton(onClick = { onRemoveTask(task.taskId) }) {
+                                Icon(Icons.Filled.Delete, contentDescription = "Remove", tint = RehabTextSecondary)
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+            Spacer(Modifier.height(60.dp))
+        }
+        FloatingActionButton(
+            onClick = { showAddDialog = true },
+            containerColor = RehabBlue,
+            modifier = Modifier.align(Alignment.BottomEnd)
+        ) {
+            Icon(Icons.Filled.Add, contentDescription = "Add task", tint = Color.White)
+        }
+    }
+
+    if (showAddDialog && categories.isNotEmpty()) {
+        TaskEditorDialog(
+            initialTitle = "",
+            initialCategory = categories.first(),
+            categories = categories,
+            title = "Add a task",
+            onDismiss = { showAddDialog = false },
+            onSave = { title, categoryId ->
+                onAddTask(title, categoryId)
+                showAddDialog = false
+            }
+        )
+    }
+
+    editingTask?.let { task ->
+        val initial = categories.find { cat -> tasksByCategory[cat]?.any { it.taskId == task.taskId } == true }
+            ?: categories.firstOrNull()
+        if (initial != null) {
+            TaskEditorDialog(
+                initialTitle = task.title,
+                initialCategory = initial,
+                categories = categories,
+                title = "Edit task",
+                onDismiss = { editingTask = null },
+                onSave = { title, categoryId ->
+                    onUpdateTask(task.taskId, title, categoryId)
+                    editingTask = null
+                }
+            )
+        }
+    }
+
+    assigningTask?.let { task ->
+        AssignTaskDialog(
+            task = task,
+            clients = clients,
+            onDismiss = { assigningTask = null },
+            onAssign = { clientId ->
+                onAssignTask(clientId, task.taskId)
+                assigningTask = null
+            }
+        )
+    }
+}
+
+@Composable
+private fun AssignTaskDialog(
+    task: Task,
+    clients: List<Client>,
+    onDismiss: () -> Unit,
+    onAssign: (Int) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Assign \"${task.title}\"", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (clients.isEmpty()) {
+                    Text("No clients yet.", color = RehabTextSecondary)
+                }
+                clients.forEach { client ->
+                    Text(
+                        client.fullName,
+                        style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier
-                            .size(10.dp)
-                            .clip(CircleShape)
-                            .background(category.color)
+                            .fillMaxWidth()
+                            .clickable { onAssign(client.clientId) }
+                            .padding(vertical = 10.dp)
                     )
-                    Spacer(Modifier.width(10.dp))
-                    Text(task.title, style = MaterialTheme.typography.bodyMedium)
                 }
             }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
         }
-        Spacer(Modifier.height(16.dp))
-    }
+    )
 }

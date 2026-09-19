@@ -157,7 +157,7 @@ fun TaskCustomisationScreen(
 }
 
 @Composable
-private fun TaskEditorDialog(
+fun TaskEditorDialog(
     initialTitle: String,
     initialCategory: Category,
     categories: List<Category>,

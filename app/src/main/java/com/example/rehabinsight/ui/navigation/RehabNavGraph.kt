@@ -205,6 +205,10 @@ fun RehabNavGraph() {
                 AdminDashboardScreen(
                     progressSummaries = viewModel.clientProgressSummaries(),
                     tasksByCategory = viewModel.tasksByCategory(),
+                    onAddTask = { title, categoryId -> viewModel.addLibraryTask(title, categoryId) },
+                    onUpdateTask = { taskId, title, categoryId -> viewModel.updateTask(taskId, title, categoryId) },
+                    onRemoveTask = { taskId -> viewModel.removeLibraryTask(taskId) },
+                    onAssignTask = { clientId, taskId -> viewModel.assignTaskToClient(clientId, taskId) },
                     onLogout = {
                         viewModel.adminLogout()
                         navController.navigate(Routes.LOGIN) {
