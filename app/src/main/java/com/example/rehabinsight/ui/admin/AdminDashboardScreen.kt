@@ -1,10 +1,9 @@
 package com.example.rehabinsight.ui.admin
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,34 +12,32 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Assignment
-import androidx.compose.material.icons.automirrored.filled.ListAlt
-import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Groups
-import androidx.compose.material.icons.filled.Insights
-import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.Assignment
+import androidx.compose.material.icons.automirrored.rounded.ListAlt
+import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material.icons.automirrored.rounded.TrendingUp
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.DonutLarge
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.Insights
+import androidx.compose.material.icons.rounded.PersonAdd
+import androidx.compose.material.icons.rounded.Support
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -49,15 +46,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.rehabinsight.data.Category
 import com.example.rehabinsight.data.Client
 import com.example.rehabinsight.data.Task
+import com.example.rehabinsight.ui.components.CalmPage
+import com.example.rehabinsight.ui.components.CircleIconButton
+import com.example.rehabinsight.ui.components.ColorDot
+import com.example.rehabinsight.ui.components.GradientScreenBackground
+import com.example.rehabinsight.ui.components.IconBubble
+import com.example.rehabinsight.ui.components.SoftCard
+import com.example.rehabinsight.ui.components.SoftProgressBar
 import com.example.rehabinsight.ui.tasks.TaskEditorDialog
-import com.example.rehabinsight.ui.theme.RehabBackgroundBottom
-import com.example.rehabinsight.ui.theme.RehabBlue
-import com.example.rehabinsight.ui.theme.RehabDivider
+import com.example.rehabinsight.ui.theme.RehabPrimary
+import com.example.rehabinsight.ui.theme.RehabPrimarySoft
+import com.example.rehabinsight.ui.theme.RehabSurface
+import com.example.rehabinsight.ui.theme.RehabTextPrimary
 import com.example.rehabinsight.ui.theme.RehabTextSecondary
 import com.example.rehabinsight.ui.theme.SuccessGreen
 import com.example.rehabinsight.ui.theme.WarnAmber
@@ -65,11 +69,13 @@ import com.example.rehabinsight.ui.theme.color
 import com.example.rehabinsight.viewmodel.ClientProgressSummary
 
 private enum class AdminSection(val title: String, val icon: ImageVector) {
-    OVERVIEW("Dashboard", Icons.Filled.Groups),
-    USER_PROGRESS("View user progress", Icons.AutoMirrored.Filled.ListAlt),
-    USER_TRENDS("View user trends", Icons.Filled.Insights),
-    TASK_LIBRARY("Manage task library", Icons.AutoMirrored.Filled.Assignment)
+    OVERVIEW("Dashboard", Icons.Rounded.Groups),
+    USER_PROGRESS("View user progress", Icons.AutoMirrored.Rounded.ListAlt),
+    USER_TRENDS("View user trends", Icons.Rounded.Insights),
+    TASK_LIBRARY("Manage task library", Icons.AutoMirrored.Rounded.Assignment)
 }
+
+private data class TrendStat(val label: String, val value: String, val icon: ImageVector, val color: Color)
 
 private val businessInsights = listOf(
     "Clients complete 68% of their checklist on an average day.",
@@ -89,111 +95,93 @@ fun AdminDashboardScreen(
 ) {
     var section by remember { mutableStateOf(AdminSection.OVERVIEW) }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+    GradientScreenBackground {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 if (section != AdminSection.OVERVIEW) {
-                    IconButton(onClick = { section = AdminSection.OVERVIEW }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
+                    CircleIconButton(
+                        icon = Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = "Back",
+                        onClick = { section = AdminSection.OVERVIEW }
+                    )
+                    Spacer(Modifier.width(14.dp))
                 } else {
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(4.dp))
                 }
-                Text(section.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            }
-            IconButton(onClick = onLogout) {
-                Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Exit", tint = RehabTextSecondary)
-            }
-        }
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-        ) {
-            when (section) {
-                AdminSection.OVERVIEW -> OverviewSection { section = it }
-                AdminSection.USER_PROGRESS -> UserProgressSection(progressSummaries)
-                AdminSection.USER_TRENDS -> UserTrendsSection()
-                AdminSection.TASK_LIBRARY -> TaskLibrarySection(
-                    tasksByCategory = tasksByCategory,
-                    clients = progressSummaries.map { it.client },
-                    onAddTask = onAddTask,
-                    onUpdateTask = onUpdateTask,
-                    onRemoveTask = onRemoveTask,
-                    onAssignTask = onAssignTask
+                Text(
+                    section.title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.weight(1f)
                 )
+                IconButton(onClick = onLogout) {
+                    Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = "Exit", tint = RehabTextSecondary)
+                }
             }
-            Spacer(Modifier.height(32.dp))
+
+            // Keyed so each section opens at the top rather than at the previous one's scroll position.
+            key(section) {
+                CalmPage {
+                    when (section) {
+                        AdminSection.OVERVIEW -> OverviewSection { section = it }
+                        AdminSection.USER_PROGRESS -> UserProgressSection(progressSummaries)
+                        AdminSection.USER_TRENDS -> UserTrendsSection()
+                        AdminSection.TASK_LIBRARY -> TaskLibrarySection(
+                            tasksByCategory = tasksByCategory,
+                            clients = progressSummaries.map { it.client },
+                            onAddTask = onAddTask,
+                            onUpdateTask = onUpdateTask,
+                            onRemoveTask = onRemoveTask,
+                            onAssignTask = onAssignTask
+                        )
+                    }
+                    Spacer(Modifier.height(32.dp))
+                }
+            }
         }
     }
 }
 
 @Composable
 private fun OverviewSection(onNavigate: (AdminSection) -> Unit) {
-    Spacer(Modifier.height(8.dp))
+    Spacer(Modifier.height(4.dp))
     Text(
         "Read-only insights for reporting, clinical review, and business development.",
         style = MaterialTheme.typography.bodyMedium,
         color = RehabTextSecondary
     )
-    Spacer(Modifier.height(18.dp))
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Spacer(Modifier.height(20.dp))
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         listOf(
             AdminSection.USER_PROGRESS,
             AdminSection.USER_TRENDS,
             AdminSection.TASK_LIBRARY
         ).forEach { entry ->
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onNavigate(entry) },
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-            ) {
+            SoftCard(contentPadding = PaddingValues(16.dp), onClick = { onNavigate(entry) }) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .background(RehabBackgroundBottom),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(entry.icon, contentDescription = null, tint = RehabBlue)
-                    }
+                    IconBubble(entry.icon)
                     Spacer(Modifier.width(14.dp))
                     Text(entry.title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                    Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = RehabTextSecondary)
+                    Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = RehabTextSecondary)
                 }
             }
         }
     }
 
-    Spacer(Modifier.height(24.dp))
-    Text("Business insights", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-    Spacer(Modifier.height(10.dp))
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Spacer(Modifier.height(28.dp))
+    Text("Business insights", style = MaterialTheme.typography.titleLarge)
+    Spacer(Modifier.height(12.dp))
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         businessInsights.forEach { insight ->
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = RehabBackgroundBottom),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-            ) {
-                Text(insight, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(14.dp))
+            SoftCard(containerColor = RehabPrimarySoft, elevated = false, contentPadding = PaddingValues(16.dp)) {
+                Text(insight, style = MaterialTheme.typography.bodyMedium, color = RehabTextPrimary)
             }
         }
     }
@@ -201,40 +189,29 @@ private fun OverviewSection(onNavigate: (AdminSection) -> Unit) {
 
 @Composable
 private fun UserProgressSection(progressSummaries: List<ClientProgressSummary>) {
-    Spacer(Modifier.height(8.dp))
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Spacer(Modifier.height(4.dp))
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         progressSummaries.forEach { summary ->
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(summary.client.fullName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text("${(summary.completionRateToday * 100).toInt()}%", style = MaterialTheme.typography.titleMedium, color = RehabBlue)
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    LinearProgressIndicator(
-                        progress = { summary.completionRateToday },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(RoundedCornerShape(50)),
-                        color = RehabBlue,
-                        trackColor = RehabDivider
-                    )
-                    Spacer(Modifier.height(8.dp))
+            SoftCard(contentPadding = PaddingValues(18.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(summary.client.fullName, style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "Current streak: ${summary.currentStreak} days \u00b7 Best: ${summary.bestStreak} days",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = RehabTextSecondary
+                        "${(summary.completionRateToday * 100).toInt()}%",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = RehabPrimary
                     )
                 }
+                Spacer(Modifier.height(10.dp))
+                SoftProgressBar(progress = summary.completionRateToday, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Current streak: ${summary.currentStreak} days · Best: ${summary.bestStreak} days",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = RehabTextSecondary
+                )
             }
         }
     }
@@ -242,35 +219,30 @@ private fun UserProgressSection(progressSummaries: List<ClientProgressSummary>) 
 
 @Composable
 private fun UserTrendsSection() {
-    Spacer(Modifier.height(8.dp))
+    Spacer(Modifier.height(4.dp))
     Text(
         "Aggregate behaviour trends across all active users (last 7 days).",
         style = MaterialTheme.typography.bodyMedium,
         color = RehabTextSecondary
     )
-    Spacer(Modifier.height(16.dp))
+    Spacer(Modifier.height(20.dp))
     val trendStats = listOf(
-        Triple("Average completion", "58%", SuccessGreen),
-        Triple("Users at risk (low engagement)", "2", WarnAmber),
-        Triple("Improving week over week", "3", SuccessGreen)
+        TrendStat("Average completion", "58%", Icons.Rounded.DonutLarge, SuccessGreen),
+        TrendStat("Users at risk (low engagement)", "2", Icons.Rounded.Support, WarnAmber),
+        TrendStat("Improving week over week", "3", Icons.AutoMirrored.Rounded.TrendingUp, SuccessGreen)
     )
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        trendStats.forEach { (label, value, color) ->
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-            ) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        trendStats.forEach { stat ->
+            SoftCard(contentPadding = PaddingValues(16.dp)) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(label, style = MaterialTheme.typography.bodyMedium)
-                    Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = color)
+                    IconBubble(stat.icon, tint = stat.color, background = stat.color.copy(alpha = 0.14f))
+                    Spacer(Modifier.width(14.dp))
+                    Text(stat.label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                    Spacer(Modifier.width(12.dp))
+                    Text(stat.value, style = MaterialTheme.typography.headlineSmall, color = stat.color)
                 }
             }
         }
@@ -291,58 +263,65 @@ private fun TaskLibrarySection(
     var editingTask by remember { mutableStateOf<Task?>(null) }
     var assigningTask by remember { mutableStateOf<Task?>(null) }
 
-    Box(modifier = Modifier.fillMaxWidth()) {
-        Column {
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "The master library used to generate & suggest tasks across all users.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = RehabTextSecondary
-            )
-            Spacer(Modifier.height(16.dp))
-            tasksByCategory.forEach { (category, tasks) ->
-                Text(category.name, style = MaterialTheme.typography.labelSmall, color = RehabTextSecondary)
-                Spacer(Modifier.height(6.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    tasks.forEach { task ->
-                        Row(
+    Spacer(Modifier.height(4.dp))
+    Text(
+        "The master library used to generate & suggest tasks across all users.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = RehabTextSecondary
+    )
+    Spacer(Modifier.height(16.dp))
+    Surface(
+        onClick = { showAddDialog = true },
+        shape = CircleShape,
+        color = RehabPrimary,
+        contentColor = RehabSurface
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 14.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Add a task", style = MaterialTheme.typography.labelLarge)
+        }
+    }
+    Spacer(Modifier.height(24.dp))
+
+    tasksByCategory.forEach { (category, tasks) ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ColorDot(category.color)
+            Spacer(Modifier.width(10.dp))
+            Text(category.name, style = MaterialTheme.typography.titleMedium)
+        }
+        Spacer(Modifier.height(10.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            tasks.forEach { task ->
+                SoftCard(contentPadding = PaddingValues(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            task.title,
+                            style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color.White, RoundedCornerShape(12.dp))
-                                .padding(horizontal = 14.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(10.dp)
-                                    .clip(CircleShape)
-                                    .background(category.color)
-                            )
-                            Spacer(Modifier.width(10.dp))
-                            Text(task.title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                            IconButton(onClick = { assigningTask = task }) {
-                                Icon(Icons.Filled.PersonAdd, contentDescription = "Assign to client", tint = RehabTextSecondary)
-                            }
-                            IconButton(onClick = { editingTask = task }) {
-                                Icon(Icons.Filled.Edit, contentDescription = "Edit", tint = RehabTextSecondary)
-                            }
-                            IconButton(onClick = { onRemoveTask(task.taskId) }) {
-                                Icon(Icons.Filled.Delete, contentDescription = "Remove", tint = RehabTextSecondary)
-                            }
+                                .weight(1f)
+                                .padding(vertical = 10.dp)
+                        )
+                        IconButton(onClick = { assigningTask = task }) {
+                            Icon(Icons.Rounded.PersonAdd, contentDescription = "Assign to client", tint = RehabTextSecondary)
+                        }
+                        IconButton(onClick = { editingTask = task }) {
+                            Icon(Icons.Rounded.Edit, contentDescription = "Edit", tint = RehabTextSecondary)
+                        }
+                        IconButton(onClick = { onRemoveTask(task.taskId) }) {
+                            Icon(Icons.Rounded.DeleteOutline, contentDescription = "Remove", tint = RehabTextSecondary)
                         }
                     }
                 }
-                Spacer(Modifier.height(16.dp))
             }
-            Spacer(Modifier.height(60.dp))
         }
-        FloatingActionButton(
-            onClick = { showAddDialog = true },
-            containerColor = RehabBlue,
-            modifier = Modifier.align(Alignment.BottomEnd)
-        ) {
-            Icon(Icons.Filled.Add, contentDescription = "Add task", tint = Color.White)
-        }
+        Spacer(Modifier.height(24.dp))
     }
 
     if (showAddDialog && categories.isNotEmpty()) {
@@ -399,7 +378,11 @@ private fun AssignTaskDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Assign \"${task.title}\"", fontWeight = FontWeight.Bold) },
+        shape = MaterialTheme.shapes.extraLarge,
+        containerColor = RehabSurface,
+        titleContentColor = RehabTextPrimary,
+        textContentColor = RehabTextPrimary,
+        title = { Text("Assign \"${task.title}\"", style = MaterialTheme.typography.titleLarge) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (clients.isEmpty()) {
@@ -411,15 +394,18 @@ private fun AssignTaskDialog(
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clip(MaterialTheme.shapes.small)
                             .clickable { onAssign(client.clientId) }
-                            .padding(vertical = 10.dp)
+                            .padding(horizontal = 12.dp, vertical = 12.dp)
                     )
                 }
             }
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", style = MaterialTheme.typography.labelLarge, color = RehabTextSecondary)
+            }
         }
     )
 }

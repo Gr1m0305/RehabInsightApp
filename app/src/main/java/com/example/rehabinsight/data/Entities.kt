@@ -12,9 +12,12 @@ import java.time.LocalDateTime
  *   Article, Question_Template, Daily_Question, Daily_Checkin, Response,
  *   streak_milestone, Universal_App_Setting
  *
- * Since this app has no remote database, these tables live in-memory inside AppViewModel's
- * StateFlow (see RehabUiState), but the shapes/relationships (PK/FK) are kept identical to the
- * diagram so the data model can be lifted onto a real SQL database with no redesign.
+ * The database itself lives on the server (see data/network). The app keeps a working copy of
+ * these tables in AppViewModel's StateFlow (see RehabUiState), with shapes/relationships (PK/FK)
+ * identical to the diagram so rows pass to and from the server unchanged.
+ *
+ * Two server tables have no class here: Client_Session, of which the app holds only the session
+ * token the server hands back at sign-in, and Schema_Version, which the app never reads.
  * ---------------------------------------------------------------------------------------------
  */
 
@@ -74,13 +77,13 @@ data class Task(
     val articleId: Int? = null,
     val title: String,
     val description: String = "",
-    /** Human-friendly time commitment, e.g. "10 min", "2-15 min", "All day". */
+    /** Human-friendly time commitment, e.g. "10 min", "2-15 min", "All day". App-only: the Task table has no such column. */
     val timeLabel: String? = null,
     val minMinutes: Int? = null,
     val maxMinutes: Int? = null,
     /** One-line evidence/rationale shown as the task's "why". */
     val justification: String? = null,
-    /** Vigorous/higher-impact movement tasks that should be swapped out under the Pain modifier. */
+    /** Vigorous/higher-impact movement tasks that should be swapped out under the Pain modifier. App-only: no column in the Task table. */
     val isVigorous: Boolean = false,
     val isActive: Boolean = true
 )

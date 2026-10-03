@@ -2,35 +2,39 @@ package com.example.rehabinsight.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Core brand palette (calm, supportive blue / indigo, matching mockups)
-val RehabBlue = Color(0xFF3D5CFF)
-val RehabBluePressed = Color(0xFF2E47D9)
-val RehabIndigo = Color(0xFF4B4FE0)
-val RehabBackgroundTop = Color(0xFFEFF3FF)
-val RehabBackgroundBottom = Color(0xFFE3E9FF)
+// Core brand palette (soft periwinkle on a pale sky-to-lavender wash, matching the client's reference designs)
+val RehabPrimary = Color(0xFF6966BF)
+val RehabPrimaryDeep = Color(0xFF524FA3)
+val RehabPrimaryLight = Color(0xFF9D9AE3)
+val RehabPrimarySoft = Color(0xFFECEBFA)
+val RehabBackgroundTop = Color(0xFFE9F1FC)
+val RehabBackgroundBottom = Color(0xFFF8F7FD)
 val RehabSurface = Color(0xFFFFFFFF)
-val RehabTextPrimary = Color(0xFF15173B)
-val RehabTextSecondary = Color(0xFF6B7094)
-val RehabTextMuted = Color(0xFF9AA0C3)
-val RehabDivider = Color(0xFFE7E9F7)
+val RehabSurfaceSoft = Color(0xFFF4F5FC)
+val RehabTextPrimary = Color(0xFF2E2C56)
+val RehabTextSecondary = Color(0xFF62658A)
+val RehabTextMuted = Color(0xFFA0A3BF)
+val RehabDivider = Color(0xFFECEDF6)
 
-// Task colour-coding (per client spec)
-val TaskOrangeMotivation = Color(0xFFFF9F5A)   // dopamine
-val TaskYellowMoodSleep = Color(0xFFFFC94A)    // serotonin
-val TaskBlueConnection = Color(0xFF4C8DFF)     // oxytocin
-val TaskGreenStressPhysical = Color(0xFF4CC38A) // endorphins
+/** Tint for card / button shadows, so elevation reads as a soft lavender glow rather than a grey edge. */
+val RehabShadow = Color(0xB36966BF)
 
-// Status / feedback colours
-val CompassionSoft = Color(0xFFFFF1E6)
-val EncourageSoft = Color(0xFFFFF7DE)
-val SuccessSoft = Color(0xFFE3F7EC)
-val SuccessGreen = Color(0xFF37A06B)
-val WarnAmber = Color(0xFFE0A100)
+// The landscape illustration that closes every page (see CalmScenery)
+val SceneryFarHill = Color(0xFFE3E3F7)
+val SceneryMidHill = Color(0xFFD2D1F1)
+val SceneryNearHillTop = Color(0xFFBCBAEA)
+val SceneryNearHillBottom = Color(0xFFABA8E4)
+val SceneryCloud = Color(0xFFE4E5F8)
+val ScenerySun = Color(0xFFFFE0BF)
 
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
+// Status / feedback colours - deliberately muted so nothing on screen reads as an alarm
+val SuccessGreen = Color(0xFF4FAE8A)
+val SuccessSoft = Color(0xFFE4F5EE)
+val WarnAmber = Color(0xFFD39A3C)
+val StreakWarm = Color(0xFFF2A65A)
+val RehabError = Color(0xFFB94A5F)
+val RehabErrorSoft = Color(0xFFFBECEF)
 
-val Purple40 = Color(0xFF6650a4)
-val PurpleGrey40 = Color(0xFF625b71)
-val Pink40 = Color(0xFF7D5260)
+// The streak plant (see StreakPlant): its stem and darker leaves are SuccessGreen, its pot rim StreakWarm
+val PlantLeafLight = Color(0xFF86CDAE)
+val PlantPot = Color(0xFFE2975A)

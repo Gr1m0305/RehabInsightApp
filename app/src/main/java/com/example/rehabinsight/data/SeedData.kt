@@ -465,34 +465,46 @@ object SeedData {
     // ---------------------------------------------------------------------------------------
     // Admin
     // ---------------------------------------------------------------------------------------
+    /**
+     * The admin every self-registered client is attached to. The server requires an admin_id when
+     * a client is created, and the sign-up screen has no way to choose one yet.
+     */
+    const val DEFAULT_ADMIN_ID = 1
+
     val admins: List<Admin> = listOf(
-        Admin(1, "Rehab", "Admin", "admin@rehabinsight.app", "admin123")
+        Admin(DEFAULT_ADMIN_ID, "Rehab", "Admin", "admin@rehabinsight.app", "admin123")
     )
 
     // ---------------------------------------------------------------------------------------
     // Demo Client data - purely so the Admin Dashboard has real, schema-shaped rows to
-    // read/aggregate from the very first run (section 17 of the build guide).
+    // read/aggregate from the very first run (section 17 of the build guide). These rows are
+    // never on the server, so their ids come from the local range (see LocalIds).
     // ---------------------------------------------------------------------------------------
+    private const val DEMO_ANNA = LocalIds.FIRST + 1001
+    private const val DEMO_JAMES = LocalIds.FIRST + 1002
+    private const val DEMO_PRIYA = LocalIds.FIRST + 1003
+    private const val DEMO_MICHAEL = LocalIds.FIRST + 1004
+
     val demoClients: List<Client> = listOf(
-        Client(1001, 1, "Anna", "B.", "anna@demo.rehabinsight.app", passwordHash = "demo"),
-        Client(1002, 1, "James", "T.", "james@demo.rehabinsight.app", passwordHash = "demo"),
-        Client(1003, 1, "Priya", "S.", "priya@demo.rehabinsight.app", passwordHash = "demo"),
-        Client(1004, 1, "Michael", "O.", "michael@demo.rehabinsight.app", passwordHash = "demo")
+        Client(DEMO_ANNA, 1, "Anna", "B.", "anna@demo.rehabinsight.app", passwordHash = "demo"),
+        Client(DEMO_JAMES, 1, "James", "T.", "james@demo.rehabinsight.app", passwordHash = "demo"),
+        Client(DEMO_PRIYA, 1, "Priya", "S.", "priya@demo.rehabinsight.app", passwordHash = "demo"),
+        Client(DEMO_MICHAEL, 1, "Michael", "O.", "michael@demo.rehabinsight.app", passwordHash = "demo")
     )
 
     val demoClientStreaks: List<ClientStreak> = listOf(
-        ClientStreak(1001, currentStreak = 12, bestStreak = 14, lastStreakDate = LocalDate.now()),
-        ClientStreak(1002, currentStreak = 3, bestStreak = 8, lastStreakDate = LocalDate.now()),
-        ClientStreak(1003, currentStreak = 0, bestStreak = 5, lastStreakDate = LocalDate.now().minusDays(4)),
-        ClientStreak(1004, currentStreak = 6, bestStreak = 9, lastStreakDate = LocalDate.now())
+        ClientStreak(DEMO_ANNA, currentStreak = 12, bestStreak = 14, lastStreakDate = LocalDate.now()),
+        ClientStreak(DEMO_JAMES, currentStreak = 3, bestStreak = 8, lastStreakDate = LocalDate.now()),
+        ClientStreak(DEMO_PRIYA, currentStreak = 0, bestStreak = 5, lastStreakDate = LocalDate.now().minusDays(4)),
+        ClientStreak(DEMO_MICHAEL, currentStreak = 6, bestStreak = 9, lastStreakDate = LocalDate.now())
     )
 
     /** The Core Five, assigned to every demo client, with a canned completion count. */
     private val demoBaselineTaskIds = CORE_FIVE_TASK_IDS
-    private val demoCompletedCounts = mapOf(1001 to 4, 1002 to 2, 1003 to 1, 1004 to 3)
+    private val demoCompletedCounts = mapOf(DEMO_ANNA to 4, DEMO_JAMES to 2, DEMO_PRIYA to 1, DEMO_MICHAEL to 3)
 
     val demoClientTasks: List<ClientTask> = buildList {
-        var nextId = 1
+        var nextId = LocalIds.FIRST + 1
         val today = LocalDate.now()
         val now = LocalDateTime.now()
         demoClients.forEach { client ->

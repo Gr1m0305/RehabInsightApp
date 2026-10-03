@@ -8,19 +8,23 @@ import java.time.LocalDateTime
 data class CheckinResult(
     val success: Boolean,
     val checkinId: Int?,
-    val errorMessage: String?
+    val errorMessage: String?,
+    /** False when the request got no answer, as opposed to the server turning it down. */
+    val serverReached: Boolean = true
 )
 
 fun createDailyCheckin(
     clientId: Int,
     checkinDate: LocalDate,
-    completedAt: LocalDateTime?
+    completedAt: LocalDateTime?,
+    sessionToken: String? = null
 ): CheckinResult {
     return try {
         val json = JSONObject().apply {
             put("client_id", clientId)
             put("checkin_date", checkinDate.toString())
             put("completed_at", completedAt?.toString())
+            put("session_token", sessionToken)
         }
 
         var (connection, body) = postJson(DAILY_CHECKIN_URL, json)
@@ -64,6 +68,6 @@ fun createDailyCheckin(
         }
     } catch (error: Exception) {
         Log.e("CHECKIN_TEST", "Check-in request failed", error)
-        CheckinResult(success = false, checkinId = null, errorMessage = "Could not reach the server.")
+        CheckinResult(success = false, checkinId = null, errorMessage = "Could not reach the server.", serverReached = false)
     }
 }

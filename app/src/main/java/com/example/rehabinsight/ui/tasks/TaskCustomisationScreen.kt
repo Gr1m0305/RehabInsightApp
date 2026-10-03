@@ -1,10 +1,11 @@
 package com.example.rehabinsight.ui.tasks
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,24 +14,21 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Spa
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -42,16 +40,27 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.rehabinsight.data.Category
+import com.example.rehabinsight.ui.components.CalmPage
 import com.example.rehabinsight.ui.components.ColorDot
+import com.example.rehabinsight.ui.components.HaloIcon
+import com.example.rehabinsight.ui.components.LocalBottomChromeInset
+import com.example.rehabinsight.ui.components.RehabTextField
+import com.example.rehabinsight.ui.components.ScreenHeader
+import com.example.rehabinsight.ui.components.SoftCard
+import com.example.rehabinsight.ui.components.softShadow
 import com.example.rehabinsight.ui.model.ChecklistItem
-import com.example.rehabinsight.ui.theme.RehabBlue
+import com.example.rehabinsight.ui.theme.RehabPrimary
+import com.example.rehabinsight.ui.theme.RehabSurface
+import com.example.rehabinsight.ui.theme.RehabTextPrimary
 import com.example.rehabinsight.ui.theme.RehabTextSecondary
 import com.example.rehabinsight.ui.theme.color
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TaskCustomisationScreen(
     checklist: List<ChecklistItem>,
@@ -63,64 +72,76 @@ fun TaskCustomisationScreen(
     var showAddDialog by remember { mutableStateOf(false) }
     var editingTask by remember { mutableStateOf<ChecklistItem?>(null) }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        floatingActionButton = {
-            FloatingActionButton(onClick = { showAddDialog = true }, containerColor = RehabBlue) {
-                Icon(Icons.Filled.Add, contentDescription = "Add task", tint = Color.White)
-            }
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-        ) {
-            Spacer(Modifier.height(20.dp))
-            Text("Your tasks", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "Add, edit, remove or recolour any task. Your checklist stays the same until you change it.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = RehabTextSecondary
+    Box(modifier = Modifier.fillMaxSize()) {
+        CalmPage {
+            Spacer(Modifier.height(16.dp))
+            ScreenHeader(
+                title = "Your tasks",
+                subtitle = "Add, edit, remove or recolour any task. Your checklist stays the same until you change it."
             )
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(20.dp))
+
+            if (checklist.isEmpty()) {
+                SoftCard {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        HaloIcon(Icons.Rounded.Spa, diameter = 104.dp)
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            "Nothing here yet. Add one small task whenever you're ready.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = RehabTextSecondary,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
 
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 checklist.forEach { item ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-                    ) {
+                    SoftCard(contentPadding = PaddingValues(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp)) {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             ColorDot(item.categoryColor)
-                            Spacer(Modifier.width(12.dp))
+                            Spacer(Modifier.width(14.dp))
                             Text(
                                 item.title,
                                 style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(vertical = 10.dp)
                             )
                             IconButton(onClick = { editingTask = item }) {
-                                Icon(Icons.Filled.Edit, contentDescription = "Edit", tint = RehabTextSecondary)
+                                Icon(Icons.Rounded.Edit, contentDescription = "Edit", tint = RehabTextSecondary)
                             }
                             IconButton(onClick = { onRemoveTask(item.clientTaskId) }) {
-                                Icon(Icons.Filled.Delete, contentDescription = "Remove", tint = RehabTextSecondary)
+                                Icon(Icons.Rounded.DeleteOutline, contentDescription = "Remove", tint = RehabTextSecondary)
                             }
                         }
                     }
                 }
             }
 
-            Spacer(Modifier.height(90.dp))
+            Spacer(Modifier.height(32.dp))
+        }
+
+        // Floats over the page's closing scenery, clear of the tab bar's rounded corner.
+        FloatingActionButton(
+            onClick = { showAddDialog = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 20.dp, bottom = 20.dp + LocalBottomChromeInset.current)
+                .softShadow(CircleShape, 10.dp),
+            shape = CircleShape,
+            containerColor = RehabPrimary,
+            contentColor = Color.White,
+            elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp, 0.dp, 0.dp)
+        ) {
+            Icon(Icons.Rounded.Add, contentDescription = "Add task")
         }
     }
 
@@ -170,37 +191,51 @@ fun TaskEditorDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title, fontWeight = FontWeight.Bold) },
+        shape = MaterialTheme.shapes.extraLarge,
+        containerColor = RehabSurface,
+        titleContentColor = RehabTextPrimary,
+        textContentColor = RehabTextPrimary,
+        title = { Text(title, style = MaterialTheme.typography.titleLarge) },
         text = {
             Column {
-                OutlinedTextField(
+                RehabTextField(
                     value = text,
                     onValueChange = { text = it },
-                    placeholder = { Text("Task name") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    placeholder = "Task name"
                 )
-                Spacer(Modifier.height(16.dp))
-                Text("Colour category (backend only \u2014 users never see this label)", style = MaterialTheme.typography.bodySmall, color = RehabTextSecondary)
-                Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    categories.forEach { cat ->
+                Spacer(Modifier.height(20.dp))
+                // The category name is backend-only: users pick by colour and never see the label.
+                Text("Colour", style = MaterialTheme.typography.labelMedium, color = RehabTextSecondary)
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.selectableGroup(),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    categories.forEachIndexed { index, cat ->
+                        val selected = cat.categoryId == category.categoryId
                         Box(
                             modifier = Modifier
-                                .size(36.dp)
+                                .size(44.dp)
                                 .clip(CircleShape)
-                                .background(if (cat.categoryId == category.categoryId) cat.color else cat.color.copy(alpha = 0.35f))
-                                .clickable { category = cat },
+                                .then(if (selected) Modifier.border(2.dp, cat.color, CircleShape) else Modifier)
+                                .selectable(selected = selected, role = Role.RadioButton, onClick = { category = cat })
+                                .semantics { contentDescription = "Colour ${index + 1}" },
                             contentAlignment = Alignment.Center
                         ) {
-                            if (cat.categoryId == category.categoryId) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(12.dp)
-                                        .clip(CircleShape)
-                                        .background(Color.White)
-                                )
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .background(if (selected) cat.color else cat.color.copy(alpha = 0.45f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (selected) {
+                                    Icon(
+                                        Icons.Rounded.Check,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -209,11 +244,13 @@ fun TaskEditorDialog(
         },
         confirmButton = {
             TextButton(onClick = { if (text.isNotBlank()) onSave(text, category.categoryId) }) {
-                Text("Save", color = RehabBlue, fontWeight = FontWeight.Bold)
+                Text("Save", style = MaterialTheme.typography.labelLarge, color = RehabPrimary)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", style = MaterialTheme.typography.labelLarge, color = RehabTextSecondary)
+            }
         }
     )
 }

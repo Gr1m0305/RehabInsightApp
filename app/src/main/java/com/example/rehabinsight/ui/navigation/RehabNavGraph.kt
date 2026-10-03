@@ -1,11 +1,14 @@
 package com.example.rehabinsight.ui.navigation
 
-import androidx.compose.animation.core.LinearEasing
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,18 +16,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -36,7 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -51,13 +48,21 @@ import com.example.rehabinsight.ui.admin.AdminDashboardScreen
 import com.example.rehabinsight.ui.admin.AdminLoginScreen
 import com.example.rehabinsight.ui.auth.AuthScreen
 import com.example.rehabinsight.ui.checkin.DailyCheckInScreen
-import com.example.rehabinsight.ui.components.PrimaryButton
+import com.example.rehabinsight.ui.components.PrimaryGradient
+import com.example.rehabinsight.ui.components.SCREEN_FADE_MILLIS
+import com.example.rehabinsight.ui.components.SecondaryButton
+import com.example.rehabinsight.ui.components.SoftChip
+import com.example.rehabinsight.ui.components.StreakPlant
+import com.example.rehabinsight.ui.components.calmBackground
 import com.example.rehabinsight.ui.main.MainScaffold
 import com.example.rehabinsight.ui.onboarding.ChecklistGenerationScreen
 import com.example.rehabinsight.ui.onboarding.ReviewChecklistScreen
 import com.example.rehabinsight.ui.onboarding.SetupQuestionnaireScreen
-import com.example.rehabinsight.ui.theme.RehabBlue
-import com.example.rehabinsight.ui.theme.SuccessGreen
+import com.example.rehabinsight.ui.theme.RehabPrimary
+import com.example.rehabinsight.ui.theme.RehabPrimaryDeep
+import com.example.rehabinsight.ui.theme.RehabSurface
+import com.example.rehabinsight.ui.theme.RehabTextPrimary
+import com.example.rehabinsight.ui.theme.RehabTextSecondary
 import com.example.rehabinsight.viewmodel.AppViewModel
 import java.time.LocalDate
 
@@ -79,15 +84,27 @@ fun RehabNavGraph() {
     val viewModel: AppViewModel = viewModel()
     val uiState by viewModel.uiState.collectAsState()
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        NavHost(navController = navController, startDestination = Routes.LOGIN) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .calmBackground()
+    ) {
+        NavHost(
+            navController = navController,
+            startDestination = Routes.LOGIN,
+            enterTransition = { fadeIn(tween(SCREEN_FADE_MILLIS)) },
+            exitTransition = { fadeOut(tween(SCREEN_FADE_MILLIS)) }
+        ) {
 
             composable(Routes.LOGIN) {
                 AuthScreen(
                     authError = uiState.authError,
+                    isBusy = uiState.authInProgress,
                     onClearError = { viewModel.clearAuthError() },
                     onLogin = { email, password ->
-                        if (viewModel.login(email, password)) goAfterAuth(navController, viewModel)
+                        viewModel.login(email, password) { success ->
+                            if (success) goAfterAuth(navController, viewModel)
+                        }
                     },
                     onSignUp = { name, email, phone, password ->
                         viewModel.signUp(name, email, phone, password) { success ->
@@ -206,7 +223,7 @@ fun RehabNavGraph() {
                     progressSummaries = viewModel.clientProgressSummaries(),
                     tasksByCategory = viewModel.tasksByCategory(),
                     onAddTask = { title, categoryId -> viewModel.addLibraryTask(title, categoryId) },
-                    onUpdateTask = { taskId, title, categoryId -> viewModel.updateTask(taskId, title, categoryId) },
+                    onUpdateTask = { taskId, title, categoryId -> viewModel.updateLibraryTask(taskId, title, categoryId) },
                     onRemoveTask = { taskId -> viewModel.removeLibraryTask(taskId) },
                     onAssignTask = { clientId, taskId -> viewModel.assignTaskToClient(clientId, taskId) },
                     onLogout = {
@@ -223,11 +240,19 @@ fun RehabNavGraph() {
         if (uiState.pendingWelcomeBack) {
             AlertDialog(
                 onDismissRequest = { viewModel.dismissWelcomeBack() },
-                title = { Text("Welcome back", fontWeight = FontWeight.Bold) },
-                text = { Text(MessagingEngine.welcomeBackMessage()) },
+                shape = MaterialTheme.shapes.extraLarge,
+                containerColor = RehabSurface,
+                titleContentColor = RehabTextPrimary,
+                textContentColor = RehabTextSecondary,
+                title = { Text("Welcome back", style = MaterialTheme.typography.titleLarge) },
+                text = { Text(MessagingEngine.welcomeBackMessage(), style = MaterialTheme.typography.bodyLarge) },
                 confirmButton = {
                     TextButton(onClick = { viewModel.dismissWelcomeBack() }) {
-                        Text(MessagingEngine.WELCOME_BACK_BUTTON_TEXT)
+                        Text(
+                            MessagingEngine.WELCOME_BACK_BUTTON_TEXT,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = RehabPrimary
+                        )
                     }
                 }
             )
@@ -252,47 +277,57 @@ private fun MilestoneCelebrationOverlay(
     isNewBest: Boolean,
     onDismiss: () -> Unit
 ) {
-    val transition = rememberInfiniteTransition(label = "flame-pulse")
-    val scale by transition.animateFloat(
-        initialValue = 0.92f,
+    BackHandler(onBack = onDismiss)
+
+    // Slow, breath-paced glow behind the plant - celebratory without being jittery.
+    val transition = rememberInfiniteTransition(label = "plant-glow")
+    val glow by transition.animateFloat(
+        initialValue = 0.9f,
         targetValue = 1.08f,
-        animationSpec = infiniteRepeatable(tween(900, easing = LinearEasing), RepeatMode.Reverse),
-        label = "flame-scale"
+        animationSpec = infiniteRepeatable(tween(2200, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "plant-glow-scale"
     )
     val dotColors = listOf(
         Color(0xFFFF9F5A), Color(0xFFFFC94A), Color(0xFF4C8DFF), Color(0xFF4CC38A)
     )
 
-    Surface(modifier = Modifier.fillMaxSize(), color = RehabBlue) {
+    Surface(modifier = Modifier.fillMaxSize(), color = RehabPrimaryDeep, contentColor = Color.White) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .background(PrimaryGradient)
+                .safeDrawingPadding()
                 .padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Box(
-                modifier = Modifier.size((72 * scale).dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Filled.LocalFireDepartment,
-                    contentDescription = null,
-                    tint = Color(0xFFFFC94A),
-                    modifier = Modifier.size((64 * scale).dp)
+            Box(contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier
+                        .size(148.dp)
+                        .graphicsLayer { scaleX = glow; scaleY = glow }
+                        .background(Color.White.copy(alpha = 0.10f), CircleShape)
                 )
+                Box(
+                    modifier = Modifier
+                        .size(112.dp)
+                        .graphicsLayer { scaleX = glow; scaleY = glow }
+                        .background(Color.White.copy(alpha = 0.14f), CircleShape)
+                )
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .background(Color.White, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    StreakPlant(days = days, size = 58.dp)
+                }
             }
             Spacer(Modifier.height(20.dp))
+            Text("$days", style = MaterialTheme.typography.displayLarge)
             Text(
-                "$days",
-                style = MaterialTheme.typography.displayLarge,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-            Text(
-                "DAYS IN A ROW",
-                style = MaterialTheme.typography.labelLarge,
-                color = Color.White.copy(alpha = 0.85f),
+                "days in a row",
+                style = MaterialTheme.typography.titleMedium,
                 textAlign = TextAlign.Center
             )
             Spacer(Modifier.height(20.dp))
@@ -302,34 +337,21 @@ private fun MilestoneCelebrationOverlay(
                 }
             }
             if (isNewBest) {
-                Spacer(Modifier.height(16.dp))
-                Card(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = SuccessGreen)
-                ) {
-                    Text(
-                        "New personal best",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                    )
-                }
+                Spacer(Modifier.height(18.dp))
+                SoftChip(text = "New personal best", containerColor = Color.White, contentColor = RehabPrimaryDeep)
             }
             Spacer(Modifier.height(28.dp))
             Text(
                 message,
                 style = MaterialTheme.typography.bodyLarge,
-                color = Color.White,
                 textAlign = TextAlign.Center
             )
             Spacer(Modifier.height(32.dp))
-            PrimaryButton(text = "Keep going", onClick = onDismiss)
+            SecondaryButton(text = "Keep going", onClick = onDismiss)
             Spacer(Modifier.height(16.dp))
             Text(
                 "No pressure to be perfect — just keep coming back.",
                 style = MaterialTheme.typography.bodySmall,
-                color = Color.White.copy(alpha = 0.75f),
                 textAlign = TextAlign.Center
             )
         }
