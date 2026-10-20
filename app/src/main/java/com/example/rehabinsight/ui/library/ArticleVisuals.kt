@@ -120,5 +120,12 @@ private val visualsByArticleId: Map<Int, ArticleVisuals> = mapOf(
     )
 )
 
-/** Photo + condensed content for this article, or null for articles that don't have any yet. */
-val Article.visuals: ArticleVisuals? get() = visualsByArticleId[articleId]
+private val builtInTitleById: Map<Int, String> = SeedData.articles.associate { it.articleId to it.title }
+
+/**
+ * Photo + condensed content for this article, or null for articles that don't have any yet.
+ * They belong to the built-in article with this id, so a different article the server holds
+ * under the same id (it has another title) doesn't take them on.
+ */
+val Article.visuals: ArticleVisuals?
+    get() = visualsByArticleId[articleId]?.takeIf { builtInTitleById[articleId] == title }

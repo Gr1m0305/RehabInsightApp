@@ -28,14 +28,15 @@ import com.example.rehabinsight.data.TaskCategory
 import com.example.rehabinsight.data.TaskRule
 import com.example.rehabinsight.data.UniversalAppSetting
 import com.example.rehabinsight.data.network.Caller
+import com.example.rehabinsight.data.network.MIN_PASSWORD_LENGTH
+import com.example.rehabinsight.data.network.addDailyQuestion
+import com.example.rehabinsight.data.network.changeClientPassword
 import com.example.rehabinsight.data.network.createClientTask
-import com.example.rehabinsight.data.network.createDailyCheckin
-import com.example.rehabinsight.data.network.createDailyQuestion
-import com.example.rehabinsight.data.network.createResponse
 import com.example.rehabinsight.data.network.createTask
 import com.example.rehabinsight.data.network.createTaskCategory
 import com.example.rehabinsight.data.network.fetchArticles
 import com.example.rehabinsight.data.network.fetchCategories
+import com.example.rehabinsight.data.network.fetchCheckedInToday
 import com.example.rehabinsight.data.network.fetchClientStreaks
 import com.example.rehabinsight.data.network.fetchClientTasks
 import com.example.rehabinsight.data.network.fetchClients
@@ -50,11 +51,15 @@ import com.example.rehabinsight.data.network.fetchTasks
 import com.example.rehabinsight.data.network.fetchUniversalAppSettings
 import com.example.rehabinsight.data.network.loginClient
 import com.example.rehabinsight.data.network.logoutSession
+import com.example.rehabinsight.data.network.removeDailyQuestion
+import com.example.rehabinsight.data.network.resetClientPassword
+import com.example.rehabinsight.data.network.sendPasswordResetCode
 import com.example.rehabinsight.data.network.saveClientStreak
 import com.example.rehabinsight.data.network.saveClientTaskStatus
 import com.example.rehabinsight.data.network.saveTaskCategory
 import com.example.rehabinsight.data.network.saveTaskChanges
 import com.example.rehabinsight.data.network.signUpClient
+import com.example.rehabinsight.data.network.submitDailyCheckin
 import com.example.rehabinsight.data.network.validateSession
 import com.example.rehabinsight.ui.model.ChecklistItem
 import com.example.rehabinsight.ui.theme.RehabTextMuted
@@ -147,7 +152,7 @@ class AppViewModel : ViewModel() {
     val uiState: StateFlow<RehabUiState> = _uiState.asStateFlow()
 
     /** Tables whose rows are made on this device first and renumbered once the server has saved them. */
-    private enum class Table { TASK, CLIENT_TASK, DAILY_QUESTION, DAILY_CHECKIN, RESPONSE }
+    private enum class Table { TASK, CLIENT_TASK, DAILY_QUESTION, DAILY_CHECKIN }
 
     /** The signed-in client's Client_Session token. Held in memory only, for this run of the app. */
     private var sessionToken: String? = null
@@ -238,25 +243,25 @@ class AppViewModel : ViewModel() {
                     responses = state.responses.map { if (it.questionId == localId) it.copy(questionId = serverId) else it }
                 )
                 Table.DAILY_CHECKIN -> state.copy(
-                    dailyCheckins = state.dailyCheckins.map { if (it.checkinId == localId) it.copy(checkinId = serverId) else it },
+                    // The server keeps one check-in a day, so a second one made that day becomes the same row.
+                    dailyCheckins = state.dailyCheckins
+                        .map { if (it.checkinId == localId) it.copy(checkinId = serverId) else it }
+                        .distinctBy { it.checkinId },
                     responses = state.responses.map { if (it.checkinId == localId) it.copy(checkinId = serverId) else it }
-                )
-                Table.RESPONSE -> state.copy(
-                    responses = state.responses.map { if (it.responseId == localId) it.copy(responseId = serverId) else it }
                 )
             }
         }
     }
 
     /**
-     * Category, Article, Task, Task_Category, Task_Rule, Question_Template, Streak_Milestone and
+     * Category, Task, Task_Category, Task_Rule, Question_Template, Streak_Milestone and
      * Universal_App_Setting: the tables every client shares. Built-in rows the server doesn't
      * return are kept, because the checklist and guidance rules refer to the built-in task ids.
+     * (Articles are only served to a signed-in client; see [loadArticles].)
      */
     private fun loadSharedTables() {
         viewModelScope.launch {
             val categories = onServer { fetchCategories() }
-            val articles = onServer { fetchArticles() }
             val tasks = onServer { fetchTasks() }
             val taskCategories = onServer { fetchTaskCategories() }
             val taskRules = onServer { fetchTaskRules() }
@@ -272,7 +277,6 @@ class AppViewModel : ViewModel() {
                 }
                 state.copy(
                     categories = state.categories.mergedWith(categories) { it.categoryId },
-                    articles = state.articles.mergedWith(articles) { it.articleId },
                     tasks = state.tasks.mergedWith(serverTasks) { it.taskId },
                     // The app gives each task one colour, so a task's row is matched on task_id alone.
                     taskCategories = state.taskCategories.mergedWith(taskCategories) { it.taskId },
@@ -289,6 +293,14 @@ class AppViewModel : ViewModel() {
         }
     }
 
+    /** Article: the server's library, merged over the built-in one. Only a signed-in client is sent it. */
+    private fun loadArticles(token: String) {
+        viewModelScope.launch {
+            val articles = onServer { fetchArticles(token) }
+            _uiState.update { it.copy(articles = it.articles.mergedWith(articles) { article -> article.articleId }) }
+        }
+    }
+
     /**
      * Client, Client_Streak, Client_Task, Daily_Checkin, Response and Daily_Question for the
      * client who has just signed in. Whatever the server can't supply is left as the app has it.
@@ -301,6 +313,7 @@ class AppViewModel : ViewModel() {
         val clientTasks = onServer { fetchClientTasks(caller, clientId) }?.sortedBy { it.clientTaskId }
         val checkins = onServer { fetchDailyCheckins(caller, clientId) }
         val responses = onServer { fetchResponses(caller, clientId) }
+        val checkedInToday = caller.sessionToken?.let { token -> onServer { fetchCheckedInToday(token) } }
 
         _uiState.update { state ->
             val held = state.clients.find { it.clientId == clientId }
@@ -317,6 +330,12 @@ class AppViewModel : ViewModel() {
                 )
             }
             val clientStreak = streak ?: state.clientStreaks.find { it.clientId == clientId } ?: ClientStreak(clientId)
+            val heldCheckins = state.dailyCheckins.mergedWith(checkins) { it.checkinId }
+            // The server can say today's check-in is done without sending the row, so the app notes
+            // that it happened (and doesn't ask again) with a row of its own.
+            val todaysCheckin = DailyCheckin(state.nextCheckinId, clientId, today()).takeIf {
+                checkedInToday == true && heldCheckins.none { it.clientId == clientId && it.checkinDate == today() }
+            }
             state.copy(
                 clients = if (held == null) state.clients + client else state.clients.mergedWith(listOf(client)) { it.clientId },
                 clientStreaks = if (state.clientStreaks.any { it.clientId == clientId }) {
@@ -325,19 +344,22 @@ class AppViewModel : ViewModel() {
                     state.clientStreaks + clientStreak
                 },
                 clientTasks = state.clientTasks.mergedWith(clientTasks) { it.clientTaskId },
-                dailyCheckins = state.dailyCheckins.mergedWith(checkins) { it.checkinId },
-                responses = state.responses.mergedWith(responses) { it.responseId }
+                dailyCheckins = heldCheckins + listOfNotNull(todaysCheckin),
+                responses = state.responses.mergedWith(responses) { it.responseId },
+                nextCheckinId = if (todaysCheckin != null) state.nextCheckinId + 1 else state.nextCheckinId
             )
         }
         unsent += caller to { questionCaller -> syncDailyQuestions(questionCaller, clientId) }
         sendUnsent()
     }
 
-    /** Gives a client their own Daily_Question rows, copied from the templates, if they have none yet. */
+    /** Gives a client their own copy of each question template they don't yet have a Daily_Question row for. */
     private fun addDailyQuestionsFor(clientId: Int) {
         val state = _uiState.value
-        if (state.dailyQuestions.any { it.clientId == clientId }) return
-        val newQuestions = state.questionTemplates.mapIndexed { index, template ->
+        val heldOrders = state.dailyQuestions.filter { it.clientId == clientId }.mapTo(HashSet()) { it.questionOrder }
+        val missing = state.questionTemplates.filter { it.questionOrder !in heldOrders }
+        if (missing.isEmpty()) return
+        val newQuestions = missing.mapIndexed { index, template ->
             DailyQuestion(
                 questionId = state.nextDailyQuestionId + index,
                 categoryId = template.categoryId,
@@ -355,11 +377,13 @@ class AppViewModel : ViewModel() {
     }
 
     /**
-     * Daily_Question: takes on the server's copy of each of the client's questions where it
-     * has one, then sends it the ones it is missing. Returns false if the server couldn't be reached.
+     * Daily_Question: takes on the server's copy of each of the client's questions where it has
+     * one (the server first copies its Question_Template rows for a client who has none), then
+     * sends it the ones it is missing. Returns false if the server couldn't be reached.
      */
     private suspend fun syncDailyQuestions(caller: Caller, clientId: Int): Boolean {
-        val onServerAlready = onServer { fetchDailyQuestions(caller, clientId) }
+        val token = caller.sessionToken ?: return true
+        val onServerAlready = onServer { fetchDailyQuestions(token) }
         onServerAlready?.forEach { question ->
             val sameQuestion = _uiState.value.dailyQuestions.find {
                 it.clientId == clientId && it.questionOrder == question.questionOrder && LocalIds.isLocal(it.questionId)
@@ -371,10 +395,10 @@ class AppViewModel : ViewModel() {
 
         val unsaved = _uiState.value.dailyQuestions.filter { it.clientId == clientId && LocalIds.isLocal(it.questionId) }
         for (question in unsaved) {
-            val saved = onServer { createDailyQuestion(caller, question) }
-            // The questions are all sent the same way, so if one is refused the rest would be too.
-            val savedId = saved.id ?: return saved.serverReached
-            adoptServerId(Table.DAILY_QUESTION, question.questionId, savedId)
+            val saved = onServer { addDailyQuestion(token, question) }
+            if (!saved.serverReached) return false
+            // One the server turns away (for a category it doesn't hold, say) stays on this device.
+            saved.id?.let { adoptServerId(Table.DAILY_QUESTION, question.questionId, it) }
         }
         return true
     }
@@ -414,27 +438,38 @@ class AppViewModel : ViewModel() {
         onServer { saveClientStreak(caller, streak) }.serverReached
     }
 
-    /** Daily_Checkin, then its Response rows (which need the check-in's server id). */
+    /**
+     * Daily_Checkin together with its Response rows, which the server takes in one request.
+     * Answers to questions the server doesn't hold stay on this device.
+     */
     private fun mirrorCheckin(checkinId: Int) = mirror { caller ->
-        var id = currentId(Table.DAILY_CHECKIN, checkinId)
-        val checkin = _uiState.value.dailyCheckins.find { it.checkinId == id } ?: return@mirror true
-        if (LocalIds.isLocal(checkin.clientId)) return@mirror true
-        if (LocalIds.isLocal(id)) {
-            val saved = onServer {
-                createDailyCheckin(checkin.clientId, checkin.checkinDate, checkin.completedAt, caller.sessionToken)
+        val token = caller.sessionToken ?: return@mirror true
+        val id = currentId(Table.DAILY_CHECKIN, checkinId)
+        val state = _uiState.value
+        val checkin = state.dailyCheckins.find { it.checkinId == id } ?: return@mirror true
+        // The server files a check-in under its own today, so one held back past its day isn't sent.
+        if (checkin.checkinDate != today()) return@mirror true
+        val answers = state.responses
+            .filter { it.checkinId == id }
+            .mapNotNull { response ->
+                serverId(Table.DAILY_QUESTION, response.questionId)?.let { questionId -> questionId to response.answer }
             }
-            val savedId = saved.checkinId ?: return@mirror saved.serverReached
-            adoptServerId(Table.DAILY_CHECKIN, id, savedId)
-            id = savedId
-        }
+            .toMap()
+        val saved = onServer { submitDailyCheckin(token, answers) }
+        if (LocalIds.isLocal(id)) saved.id?.let { adoptServerId(Table.DAILY_CHECKIN, id, it) }
+        saved.serverReached
+    }
 
-        val unsavedResponses = _uiState.value.responses.filter { it.checkinId == id && LocalIds.isLocal(it.responseId) }
-        unsavedResponses.all { response ->
-            val questionId = serverId(Table.DAILY_QUESTION, response.questionId) ?: return@all true
-            val saved = onServer { createResponse(caller, response.copy(questionId = questionId)) }
-            saved.id?.let { adoptServerId(Table.RESPONSE, response.responseId, it) }
-            saved.serverReached
-        }
+    /** Daily_Question: saves a question the client has just added to their check-in. */
+    private fun mirrorNewDailyQuestion(questionId: Int) = mirror { caller ->
+        val token = caller.sessionToken ?: return@mirror true
+        val id = currentId(Table.DAILY_QUESTION, questionId)
+        if (!LocalIds.isLocal(id)) return@mirror true
+        // Read afresh: the question may have been removed while it waited its turn.
+        val question = _uiState.value.dailyQuestions.find { it.questionId == id } ?: return@mirror true
+        val saved = onServer { addDailyQuestion(token, question) }
+        saved.id?.let { adoptServerId(Table.DAILY_QUESTION, id, it) }
+        saved.serverReached
     }
 
     /** Task and its Task_Category, then (for a client's own task) the Client_Task that puts it on their checklist. */
@@ -504,6 +539,7 @@ class AppViewModel : ViewModel() {
                 )
                 // Creating a client doesn't start a session, so sign in straight away to get one.
                 sessionToken = onServer { loginClient(trimmedEmail, password) }.sessionToken
+                sessionToken?.let(::loadArticles)
                 ownTaskIds.clear()
 
                 _uiState.update {
@@ -563,6 +599,7 @@ class AppViewModel : ViewModel() {
             sessionToken = token.takeIf { serverClientId != null }
             ownTaskIds.clear()
             if (serverClientId != null) loadClientFromServer(serverClientId, trimmedEmail)
+            sessionToken?.let(::loadArticles)
 
             val todaysCheckIn = todaysCheckInFromResponses(clientId)
             _uiState.update {
@@ -828,6 +865,13 @@ class AppViewModel : ViewModel() {
             newResponses += Response(responseId, question.questionId, checkinId, value)
             responseId++
         }
+        checkIn.ownAnswers.forEach { (questionId, level) ->
+            // The screen may still hold the id a question had before the server renumbered it.
+            val id = currentId(Table.DAILY_QUESTION, questionId)
+            if (state.dailyQuestions.none { it.questionId == id }) return@forEach
+            newResponses += Response(responseId, id, checkinId, GuidanceEngine.answerValue(level))
+            responseId++
+        }
 
         _uiState.update {
             it.copy(
@@ -1002,6 +1046,118 @@ class AppViewModel : ViewModel() {
     fun milestoneMessage(days: Int): String =
         _uiState.value.streakMilestones.find { it.days == days }?.message
             ?: "$days day streak! Celebrate consistency, not perfection."
+
+    // ---------------------------------------------------------------------
+    // The client's own Daily Check-In questions (Daily_Question)
+    // ---------------------------------------------------------------------
+
+    /** Questions the client added to their Daily Check-In themselves, in the order they are asked. */
+    fun ownCheckInQuestions(): List<DailyQuestion> {
+        val clientId = _uiState.value.currentClientId ?: return emptyList()
+        return _uiState.value.dailyQuestions
+            .filter { it.clientId == clientId && it.isOwnQuestion }
+            .sortedBy { it.questionOrder }
+    }
+
+    /** Adds a question to the end of the client's Daily Check-In. [categoryId] is the colour they picked for it. */
+    fun addCheckInQuestion(text: String, categoryId: Int) {
+        if (text.isBlank() || ownCheckInQuestions().size >= DailyQuestion.MAX_OWN_QUESTIONS) return
+        val clientId = _uiState.value.currentClientId ?: return
+        val state = _uiState.value
+        val usedOrders = state.dailyQuestions.filter { it.clientId == clientId }.mapTo(HashSet()) { it.questionOrder }
+        val order = DailyQuestion.OWN_QUESTION_ORDERS.firstOrNull { it !in usedOrders } ?: return
+        val question = DailyQuestion(state.nextDailyQuestionId, categoryId, clientId, order, text.trim())
+        _uiState.update {
+            it.copy(dailyQuestions = it.dailyQuestions + question, nextDailyQuestionId = question.questionId + 1)
+        }
+        mirrorNewDailyQuestion(question.questionId)
+    }
+
+    /** Takes one of the client's own questions out of their Daily Check-In. Their past answers to it are kept. */
+    fun removeCheckInQuestion(questionId: Int) {
+        val id = currentId(Table.DAILY_QUESTION, questionId)
+        if (_uiState.value.dailyQuestions.none { it.questionId == id && it.isOwnQuestion }) return
+        _uiState.update { state -> state.copy(dailyQuestions = state.dailyQuestions.filterNot { it.questionId == id }) }
+        mirror { caller ->
+            val token = caller.sessionToken ?: return@mirror true
+            val serverQuestionId = serverId(Table.DAILY_QUESTION, id) ?: return@mirror true
+            onServer { removeDailyQuestion(token, serverQuestionId) }.serverReached
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Account (Client)
+    // ---------------------------------------------------------------------
+
+    /**
+     * Replaces the signed-in client's password. [onResult] gets null once it has been changed,
+     * or what to tell them if it couldn't be.
+     */
+    fun changePassword(currentPassword: String, newPassword: String, onResult: (String?) -> Unit) {
+        val client = _uiState.value.currentClient ?: return
+        if (currentPassword.isBlank() || newPassword.isBlank()) {
+            onResult("Please fill in every field.")
+            return
+        }
+        if (newPassword.length < MIN_PASSWORD_LENGTH) {
+            onResult("Your new password needs at least $MIN_PASSWORD_LENGTH characters.")
+            return
+        }
+        val token = sessionToken
+        viewModelScope.launch {
+            val problem = when {
+                token != null -> onServer { changeClientPassword(client.email, token, currentPassword, newPassword) }
+                    .let { result -> if (result.success) null else result.errorMessage ?: "We couldn't change your password just now." }
+                // With no session, only an account the app holds itself (a demo one) can be changed.
+                !LocalIds.isLocal(client.clientId) -> "Please sign in again, then change your password."
+                client.passwordHash != currentPassword -> "That current password doesn't match. Please try again."
+                else -> null
+            }
+            if (problem == null) updateHeldPassword(newPassword) { it.clientId == client.clientId }
+            onResult(problem)
+        }
+    }
+
+    /** Asks the server to email [email] a reset code. [onResult] gets null once it has asked, or what to tell them. */
+    fun requestPasswordReset(email: String, onResult: (String?) -> Unit) {
+        val trimmedEmail = email.trim()
+        if (trimmedEmail.isBlank()) {
+            onResult("Please enter your email address.")
+            return
+        }
+        viewModelScope.launch {
+            val result = onServer { sendPasswordResetCode(trimmedEmail) }
+            onResult(if (result.success) null else result.errorMessage ?: "We couldn't send a reset code just now.")
+        }
+    }
+
+    /** Sets a new password with the code from the reset email. [onResult] gets null once it is reset, or what to tell them. */
+    fun resetPassword(email: String, code: String, newPassword: String, onResult: (String?) -> Unit) {
+        val trimmedEmail = email.trim()
+        val digits = code.filter { it.isDigit() }
+        if (digits.isEmpty() || newPassword.isBlank()) {
+            onResult("Please fill in every field.")
+            return
+        }
+        if (newPassword.length < MIN_PASSWORD_LENGTH) {
+            onResult("Your new password needs at least $MIN_PASSWORD_LENGTH characters.")
+            return
+        }
+        viewModelScope.launch {
+            val result = onServer { resetClientPassword(trimmedEmail, digits, newPassword) }
+            if (result.success) updateHeldPassword(newPassword) { it.email.equals(trimmedEmail, ignoreCase = true) }
+            onResult(if (result.success) null else result.errorMessage ?: "We couldn't reset your password just now.")
+        }
+    }
+
+    /** The app's own copy of a client's password, used to sign in while the server can't be reached, follows a change. */
+    private fun updateHeldPassword(newPassword: String, isClient: (Client) -> Boolean) {
+        _uiState.update { state ->
+            state.copy(clients = state.clients.map {
+                if (isClient(it) && it.passwordHash.isNotEmpty()) it.copy(passwordHash = newPassword) else it
+            })
+        }
+    }
 
     // ---------------------------------------------------------------------
     // Task customisation (adds/edits Task + Task_Category + client_task rows)

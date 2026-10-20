@@ -31,5 +31,7 @@ data class CheckInAnswers(
     val sleep: FiveLevel,
     val motivation: FiveLevel,
     val pain: FiveLevel? = null,
+    /** Answers to the client's own questions, by question_id. A question they skipped has none. */
+    val ownAnswers: Map<Int, FiveLevel> = emptyMap(),
     val skipped: Boolean = false
 )

@@ -49,6 +49,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.rehabinsight.data.Article
 import com.example.rehabinsight.data.Category
+import com.example.rehabinsight.data.DailyQuestion
 import com.example.rehabinsight.data.Reflection
 import com.example.rehabinsight.ui.components.LocalBottomChromeInset
 import com.example.rehabinsight.ui.components.SCREEN_FADE_MILLIS
@@ -97,10 +98,14 @@ fun MainScaffold(
     weeklyConsistency: List<Boolean>,
     categories: List<Category>,
     articles: List<Article>,
+    checkInQuestions: List<DailyQuestion>,
     onToggleTask: (Int) -> Unit,
     onAddTask: (String, Int) -> Unit,
     onUpdateTask: (Int, String, Int) -> Unit,
     onRemoveTask: (Int) -> Unit,
+    onAddCheckInQuestion: (String, Int) -> Unit,
+    onRemoveCheckInQuestion: (Int) -> Unit,
+    onChangePassword: (currentPassword: String, newPassword: String, onResult: (String?) -> Unit) -> Unit,
     onLogout: () -> Unit
 ) {
     val navController = rememberNavController()
@@ -192,6 +197,11 @@ fun MainScaffold(
                         currentStreak = streak,
                         longestStreak = longestStreak,
                         weeklyConsistency = weeklyConsistency,
+                        checkInQuestions = checkInQuestions,
+                        categories = categories,
+                        onAddCheckInQuestion = onAddCheckInQuestion,
+                        onRemoveCheckInQuestion = onRemoveCheckInQuestion,
+                        onChangePassword = onChangePassword,
                         onLogout = onLogout
                     )
                 }

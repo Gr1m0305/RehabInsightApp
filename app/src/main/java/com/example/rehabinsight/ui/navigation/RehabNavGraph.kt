@@ -52,7 +52,7 @@ import com.example.rehabinsight.ui.components.PrimaryGradient
 import com.example.rehabinsight.ui.components.SCREEN_FADE_MILLIS
 import com.example.rehabinsight.ui.components.SecondaryButton
 import com.example.rehabinsight.ui.components.SoftChip
-import com.example.rehabinsight.ui.components.StreakPlant
+import com.example.rehabinsight.ui.components.StreakPlantBubble
 import com.example.rehabinsight.ui.components.calmBackground
 import com.example.rehabinsight.ui.main.MainScaffold
 import com.example.rehabinsight.ui.onboarding.ChecklistGenerationScreen
@@ -111,6 +111,10 @@ fun RehabNavGraph() {
                             if (success) goAfterAuth(navController, viewModel)
                         }
                     },
+                    onRequestPasswordReset = { email, onResult -> viewModel.requestPasswordReset(email, onResult) },
+                    onResetPassword = { email, code, newPassword, onResult ->
+                        viewModel.resetPassword(email, code, newPassword, onResult)
+                    },
                     onAdminLoginClick = { navController.navigate(Routes.ADMIN_LOGIN) }
                 )
             }
@@ -152,6 +156,7 @@ fun RehabNavGraph() {
                 LaunchedEffect(Unit) { viewModel.checkForMissedDay() }
                 DailyCheckInScreen(
                     userName = uiState.currentClient?.firstName.orEmpty(),
+                    ownQuestions = viewModel.ownCheckInQuestions(),
                     onSubmit = { checkIn ->
                         viewModel.submitDailyCheckIn(checkIn)
                         navController.navigate(Routes.MAIN) {
@@ -189,10 +194,14 @@ fun RehabNavGraph() {
                         weeklyConsistency = viewModel.weeklyConsistency(),
                         categories = uiState.categories,
                         articles = viewModel.activeArticles(),
+                        checkInQuestions = viewModel.ownCheckInQuestions(),
                         onToggleTask = { viewModel.toggleTaskCompletion(it) },
                         onAddTask = { title, categoryId -> viewModel.addCustomTask(title, categoryId) },
                         onUpdateTask = { taskId, title, categoryId -> viewModel.updateTask(taskId, title, categoryId) },
                         onRemoveTask = { viewModel.removeTask(it) },
+                        onAddCheckInQuestion = { text, categoryId -> viewModel.addCheckInQuestion(text, categoryId) },
+                        onRemoveCheckInQuestion = { viewModel.removeCheckInQuestion(it) },
+                        onChangePassword = { current, new, onResult -> viewModel.changePassword(current, new, onResult) },
                         onLogout = {
                             viewModel.logout()
                             navController.navigate(Routes.LOGIN) {
@@ -314,14 +323,7 @@ private fun MilestoneCelebrationOverlay(
                         .graphicsLayer { scaleX = glow; scaleY = glow }
                         .background(Color.White.copy(alpha = 0.14f), CircleShape)
                 )
-                Box(
-                    modifier = Modifier
-                        .size(80.dp)
-                        .background(Color.White, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    StreakPlant(days = days, size = 58.dp)
-                }
+                StreakPlantBubble(days = days, size = 80.dp, background = Color.White)
             }
             Spacer(Modifier.height(20.dp))
             Text("$days", style = MaterialTheme.typography.displayLarge)

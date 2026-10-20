@@ -59,6 +59,8 @@ fun AuthScreen(
     onClearError: () -> Unit,
     onLogin: (email: String, password: String) -> Unit,
     onSignUp: (name: String, email: String, phone: String, password: String) -> Unit,
+    onRequestPasswordReset: (email: String, onResult: (String?) -> Unit) -> Unit,
+    onResetPassword: (email: String, code: String, newPassword: String, onResult: (String?) -> Unit) -> Unit,
     onAdminLoginClick: () -> Unit
 ) {
     var isSignUpMode by remember { mutableStateOf(false) }
@@ -67,6 +69,7 @@ fun AuthScreen(
     var phone by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
+    var showForgotPassword by remember { mutableStateOf(false) }
 
     GradientScreenBackground {
         CalmPage(horizontalPadding = 24.dp, horizontalAlignment = Alignment.CenterHorizontally) {
@@ -181,7 +184,10 @@ fun AuthScreen(
 
                 if (!isSignUpMode) {
                     Spacer(Modifier.height(6.dp))
-                    TextButton(onClick = {}, modifier = Modifier.align(Alignment.End)) {
+                    TextButton(
+                        onClick = { onClearError(); showForgotPassword = true },
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
                         Text("Forgot password?", style = MaterialTheme.typography.labelMedium, color = RehabPrimary)
                     }
                     Spacer(Modifier.height(2.dp))
@@ -237,5 +243,19 @@ fun AuthScreen(
             )
             Spacer(Modifier.height(12.dp))
         }
+    }
+
+    if (showForgotPassword) {
+        ForgotPasswordDialog(
+            initialEmail = email,
+            onRequestCode = onRequestPasswordReset,
+            onResetPassword = onResetPassword,
+            onDismiss = { showForgotPassword = false },
+            onFinished = { resetEmail ->
+                email = resetEmail
+                password = ""
+                showForgotPassword = false
+            }
+        )
     }
 }

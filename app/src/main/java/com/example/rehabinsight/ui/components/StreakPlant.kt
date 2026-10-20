@@ -2,22 +2,23 @@ package com.example.rehabinsight.ui.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.example.rehabinsight.ui.theme.PlantGroundFar
+import com.example.rehabinsight.ui.theme.PlantGroundNear
 import com.example.rehabinsight.ui.theme.PlantLeafLight
-import com.example.rehabinsight.ui.theme.PlantPot
 import com.example.rehabinsight.ui.theme.RehabPrimaryLight
 import com.example.rehabinsight.ui.theme.StreakWarm
 import com.example.rehabinsight.ui.theme.SuccessGreen
@@ -26,111 +27,139 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * The streak lengths, in days, at which the plant takes its next step: a first leaf, a pair, then
- * a leaf more each time, a bud at two weeks, a flower at a month and further blossoms after that.
+ * The streak lengths, in days, at which the plant takes its next step: taller with a new leaf
+ * at each step up to a week, a bud at two weeks, a flower at a month and further blossoms
+ * after that.
  */
 private val growthSteps = listOf(1, 2, 3, 5, 7, 14, 30, 50, 100)
 
 private const val BUD_STAGE = 6
 private const val FIRST_FLOWER_STAGE = 7
 
-/** Stem height at each stage, in units of the 24-unit grid the plant is drawn on. */
-private val stemHeights = listOf(0f, 4f, 5.2f, 6.6f, 8.2f, 9.8f, 11.2f, 12f, 12.4f, 12.8f)
+/** Where the stem leaves the ground, on the 24-unit grid the plant is drawn on (the circle's diameter). */
+private const val GROUND_Y = 17.8f
 
-/** How far the plant has grown for a streak of [days]: 0 is a seed in its pot. */
+/** Stem height above the ground at each stage, in grid units. */
+private val stemHeights = listOf(1.8f, 3.2f, 4.8f, 6.4f, 7.8f, 9f, 9.6f, 9.9f, 10.2f, 10.4f)
+
+/** The seed leaves sit at the tip of a new sprout, then stay this far up the stem as it grows past them. */
+private const val SEED_LEAF_HEIGHT = 3.2f
+
+/** How far the plant has grown for a streak of [days]: 0 is a sprout just out of the ground. */
 private fun growthStage(days: Int): Int = growthSteps.count { days >= it }
 
 /**
- * The streak, drawn as a pot plant that grows with it. Decorative only: wherever it appears the
- * number of days is written beside it.
+ * The streak, drawn as a plant growing out of soft hills on a disc of [background]. It fills
+ * the circle, and the hills follow its curve. Decorative only: wherever it appears the number
+ * of days is written beside it.
  */
 @Composable
-fun StreakPlant(days: Int, modifier: Modifier = Modifier, size: Dp = 24.dp) {
+fun StreakPlantBubble(
+    days: Int,
+    modifier: Modifier = Modifier,
+    size: Dp = 44.dp,
+    background: Color = SuccessSoft
+) {
     val stage = growthStage(days)
-    Canvas(modifier = modifier.size(size)) {
-        val u = this.size.minDimension / 24f
-        val centreX = 12f * u
-        val stemBase = 16.6f * u
-        val stemTop = stemBase - stemHeights[stage] * u
-
-        if (stage == 0) {
-            // A seed just showing above the rim: nothing has grown yet, but it is planted.
-            drawCircle(SuccessGreen, radius = 1.2f * u, center = Offset(centreX, 16.1f * u))
-        } else {
-            drawLine(
-                color = SuccessGreen,
-                start = Offset(centreX, stemBase),
-                end = Offset(centreX, stemTop),
-                strokeWidth = 1.3f * u,
-                cap = StrokeCap.Round
-            )
-            drawLeaves(stage, centreX, stemBase, stemTop, u)
-            if (stage == BUD_STAGE) drawCircle(RehabPrimaryLight, radius = 1.5f * u, center = Offset(centreX, stemTop))
-            if (stage >= FIRST_FLOWER_STAGE) drawBlossoms(stage, centreX, stemTop, u)
-        }
-        drawPot(u)
-    }
-}
-
-/** [StreakPlant] on a soft green disc, sized like an [IconBubble]. */
-@Composable
-fun StreakPlantBubble(days: Int, modifier: Modifier = Modifier, size: Dp = 44.dp) {
-    Box(
+    Canvas(
         modifier = modifier
             .size(size)
-            .background(SuccessSoft, CircleShape),
-        contentAlignment = Alignment.Center
+            .clip(CircleShape)
+            .background(background)
     ) {
-        StreakPlant(days = days, size = size * 0.8f)
+        val u = this.size.minDimension / 24f
+        drawHills(u)
+
+        val stem = Stem(stemHeights[stage], u)
+        drawPath(stem.path(), SuccessGreen, style = Stroke(width = 1.25f * u, cap = StrokeCap.Round))
+        drawSeedLeaves(stage, stem, u)
+        drawLeaves(stage, stem, u)
+        if (stage == BUD_STAGE) drawBud(stem.tip, u)
+        if (stage >= FIRST_FLOWER_STAGE) drawBlossoms(stage, stem, u)
     }
 }
 
-private fun DrawScope.drawPot(u: Float) {
-    val body = Path().apply {
-        moveTo(7.6f * u, 18.4f * u)
-        lineTo(16.4f * u, 18.4f * u)
-        lineTo(15.2f * u, 22.2f * u)
-        cubicTo(15.1f * u, 22.8f * u, 14.8f * u, 23f * u, 14.2f * u, 23f * u)
-        lineTo(9.8f * u, 23f * u)
-        cubicTo(9.2f * u, 23f * u, 8.9f * u, 22.8f * u, 8.8f * u, 22.2f * u)
+/** Two layers of rolling ground across the bottom of the circle, like the scenery that closes each page. */
+private fun DrawScope.drawHills(u: Float) {
+    val far = Path().apply {
+        moveTo(-1f * u, 17.2f * u)
+        cubicTo(6f * u, 14.6f * u, 15f * u, 15.4f * u, 25f * u, 18.4f * u)
+        lineTo(25f * u, 25f * u)
+        lineTo(-1f * u, 25f * u)
         close()
     }
-    drawPath(body, PlantPot)
-    drawRoundRect(
-        color = StreakWarm,
-        topLeft = Offset(6.4f * u, 16.4f * u),
-        size = Size(11.2f * u, 2.4f * u),
-        cornerRadius = CornerRadius(1.2f * u)
-    )
+    drawPath(far, PlantGroundFar)
+    val near = Path().apply {
+        moveTo(-1f * u, 20.6f * u)
+        cubicTo(5f * u, 16.8f * u, 18f * u, 16.6f * u, 25f * u, 19.8f * u)
+        lineTo(25f * u, 25f * u)
+        lineTo(-1f * u, 25f * u)
+        close()
+    }
+    drawPath(near, PlantGroundNear)
+}
+
+/** The stem: a gentle S-curve from the ground that sways a little more the taller it gets. */
+private class Stem(val height: Float, u: Float) {
+    private val sway = 0.6f * (height / 12f)
+    val base = Offset(12f * u, (GROUND_Y + 0.4f) * u)
+    val tip = Offset((12f + sway * 0.4f) * u, (GROUND_Y - height) * u)
+    private val control1 = Offset((12f - sway) * u, (GROUND_Y - height * 0.35f) * u)
+    private val control2 = Offset((12f + sway) * u, (GROUND_Y - height * 0.7f) * u)
+
+    /** The point [t] of the way up the stem, 0 at the ground and 1 at the tip. */
+    fun at(t: Float): Offset {
+        val s = 1f - t
+        return base * (s * s * s) + control1 * (3f * s * s * t) + control2 * (3f * s * t * t) + tip * (t * t * t)
+    }
+
+    fun path(): Path = Path().apply {
+        moveTo(base.x, base.y)
+        cubicTo(control1.x, control1.y, control2.x, control2.y, tip.x, tip.y)
+    }
+}
+
+/** The first pair of rounded leaves: open in a V at the tip of a new sprout, then left behind low on the stem. */
+private fun DrawScope.drawSeedLeaves(stage: Int, stem: Stem, u: Float) {
+    val atTip = stage <= 1
+    val node = if (atTip) stem.tip else stem.at(SEED_LEAF_HEIGHT / stem.height)
+    val length = if (atTip) (2.8f + 0.9f * stage) * u else 4.2f * u
+    val angle = Math.toRadians(if (atTip) 34.0 else 22.0)
+    listOf(1f, -1f).forEach { side ->
+        val tip = Offset(node.x + side * length * cos(angle).toFloat(), node.y - length * sin(angle).toFloat())
+        drawPath(leafPath(node, tip, width = 0.56f), if (side > 0) PlantLeafLight else SuccessGreen)
+    }
 }
 
 /**
- * One leaf per stage up to six, alternating sides. The first two open as a pair at the tip, the
- * way a seedling does; after that they climb the stem, smaller and more upright towards the top.
+ * The leaves that follow the seed leaves, one more at each stage up to five, alternating sides
+ * as they climb. The newest, at the top, is the smallest and most upright.
  */
-private fun DrawScope.drawLeaves(stage: Int, centreX: Float, stemBase: Float, stemTop: Float, u: Float) {
-    val count = stage.coerceAtMost(6)
-    // Once there is a bud or flower, the leaves stop short of the tip to leave it room.
-    val highest = if (stage >= BUD_STAGE) 0.74f else 1f
+private fun DrawScope.drawLeaves(stage: Int, stem: Stem, u: Float) {
+    val count = (stage - 1).coerceIn(0, 5)
+    if (count == 0) return
+    val lowest = (SEED_LEAF_HEIGHT + 0.9f) / stem.height
+    // Once there is a bud or flower, the leaves stop short of the tip, and the top ones are
+    // shorter, so none of them reaches up over it.
+    val flowering = stage >= BUD_STAGE
+    val highest = if (flowering) 0.68f else 0.94f
+    val shrink = if (flowering) 2.4f else 1.9f
     for (index in 0 until count) {
-        val along = when {
-            count <= 2 -> 1f
-            else -> 0.26f + (highest - 0.26f) * index / (count - 1)
-        }
-        val side = if (index % 2 == 0) 1f else -1f
-        val length = (5.4f - 1.5f * along) * u
-        val angle = Math.toRadians((26f + 30f * along).toDouble())
-        val base = Offset(centreX, stemBase + (stemTop - stemBase) * along)
+        val position = if (count == 1) 1f else index / (count - 1f)
+        val along = if (count == 1) highest else lowest + (highest - lowest) * position
+        val side = if (index % 2 == 0) -1f else 1f
+        val length = (5.2f - shrink * position) * u
+        val angle = Math.toRadians((24f + 32f * position).toDouble())
+        val base = stem.at(along)
         val tip = Offset(base.x + side * length * cos(angle).toFloat(), base.y - length * sin(angle).toFloat())
-        drawPath(leafPath(base, tip), if (side > 0) PlantLeafLight else SuccessGreen)
+        drawPath(leafPath(base, tip, width = 0.38f), if (side > 0) PlantLeafLight else SuccessGreen)
     }
 }
 
-/** An almond-shaped leaf from [base] to [tip]. */
-private fun leafPath(base: Offset, tip: Offset): Path {
+/** An almond-shaped leaf from [base] to [tip]; [width] is half its width as a share of its length. */
+private fun leafPath(base: Offset, tip: Offset, width: Float): Path {
     val along = tip - base
-    // Half the leaf's width, at right angles to its length.
-    val across = Offset(-along.y, along.x) * 0.36f
+    val across = Offset(-along.y, along.x) * width
     val nearBase = base + along * 0.25f
     val nearTip = base + along * 0.75f
     return Path().apply {
@@ -141,23 +170,36 @@ private fun leafPath(base: Offset, tip: Offset): Path {
     }
 }
 
+/** A closed bud at the tip, cupped by two small green leaves. */
+private fun DrawScope.drawBud(tip: Offset, u: Float) {
+    drawOval(
+        color = RehabPrimaryLight,
+        topLeft = Offset(tip.x - 1.2f * u, tip.y - 3f * u),
+        size = Size(2.4f * u, 3.2f * u)
+    )
+    listOf(1f, -1f).forEach { side ->
+        drawPath(leafPath(tip, Offset(tip.x + side * 1.5f * u, tip.y - 1.7f * u), width = 0.4f), SuccessGreen)
+    }
+}
+
 /** A flower at the tip, joined by a second and then a third on side stalks as the streak goes on. */
-private fun DrawScope.drawBlossoms(stage: Int, centreX: Float, stemTop: Float, u: Float) {
+private fun DrawScope.drawBlossoms(stage: Int, stem: Stem, u: Float) {
     val sideBlossoms = listOf(
-        Offset(centreX - 4.6f * u, stemTop + 2.2f * u),
-        Offset(centreX + 4.6f * u, stemTop + 3.4f * u)
+        stem.at(0.6f) to Offset(-4.8f * u, -2.6f * u),
+        stem.at(0.48f) to Offset(4.9f * u, -2.2f * u)
     ).take(stage - FIRST_FLOWER_STAGE)
-    sideBlossoms.forEach { centre ->
+    sideBlossoms.forEach { (from, offset) ->
+        val centre = from + offset
         drawLine(
             color = SuccessGreen,
-            start = Offset(centreX, centre.y + 1.8f * u),
+            start = from,
             end = centre,
             strokeWidth = 0.9f * u,
             cap = StrokeCap.Round
         )
-        drawFlower(centre, petalRadius = 0.95f * u)
+        drawFlower(centre, petalRadius = 1.05f * u)
     }
-    drawFlower(Offset(centreX, stemTop - 0.4f * u), petalRadius = 1.35f * u)
+    drawFlower(Offset(stem.tip.x, stem.tip.y - 0.6f * u), petalRadius = 1.45f * u)
 }
 
 private fun DrawScope.drawFlower(centre: Offset, petalRadius: Float) {

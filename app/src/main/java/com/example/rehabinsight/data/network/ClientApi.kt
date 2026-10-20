@@ -54,26 +54,41 @@ fun signUpClient(
             put("password", password)
         }
 
-        var (connection, body) = postJson(CLIENT_SIGNUP_URL, json)
-        var responseCode = connection.responseCode
+        fun send(): Pair<Int, String?> {
+            var (connection, body) = postJson(CLIENT_SIGNUP_URL, json)
+            var responseCode = connection.responseCode
 
-        if (responseCode == 307 || responseCode == 308) {
-            val redirectUrl = connection.getHeaderField("Location")
-            connection.disconnect()
-            if (redirectUrl != null) {
-                val redirected = postJson(redirectUrl, json)
-                connection = redirected.first
-                body = redirected.second
-                responseCode = connection.responseCode
+            if (responseCode == 307 || responseCode == 308) {
+                val redirectUrl = connection.getHeaderField("Location")
+                connection.disconnect()
+                if (redirectUrl != null) {
+                    val redirected = postJson(redirectUrl, json)
+                    connection = redirected.first
+                    body = redirected.second
+                    responseCode = connection.responseCode
+                }
             }
+
+            Log.d("SIGNUP_TEST", "URL: $CLIENT_SIGNUP_URL")
+            Log.d("SIGNUP_TEST", "Code: $responseCode")
+            Log.d("SIGNUP_TEST", "Allow header: ${connection.getHeaderField("Allow")}")
+            Log.d("SIGNUP_TEST", "Body: $body")
+
+            connection.disconnect()
+            return responseCode to body
         }
 
-        Log.d("SIGNUP_TEST", "URL: $CLIENT_SIGNUP_URL")
-        Log.d("SIGNUP_TEST", "Code: $responseCode")
-        Log.d("SIGNUP_TEST", "Allow header: ${connection.getHeaderField("Allow")}")
-        Log.d("SIGNUP_TEST", "Body: $body")
+        var (responseCode, body) = send()
 
-        connection.disconnect()
+        // admin_id is Client's only foreign key, so this refusal means the database has no Admin
+        // row with that id. Rather than turn the person away, the account is made without one.
+        if (responseCode !in 200..299 && "foreign key constraint failed" in body.orEmpty().lowercase()) {
+            Log.w("SIGNUP_TEST", "No Admin $adminId on the server; creating the client without an admin")
+            json.remove("admin_id")
+            val retried = send()
+            responseCode = retried.first
+            body = retried.second
+        }
 
         if (responseCode in 200..299) {
             val obj = JSONObject(body ?: "{}")
@@ -157,6 +172,85 @@ fun validateSession(sessionToken: String): Int? {
 fun logoutSession(sessionToken: String): WriteResult {
     val json = JSONObject().apply { put("session_token", sessionToken) }
     return writeResultFrom(postForResponse(SESSION_LOGOUT_URL, json))
+}
+
+/** The server's shortest allowed new password (new_password on client/change-password and client/reset-password). */
+const val MIN_PASSWORD_LENGTH = 8
+
+/** How long a reset code works for, and how soon another can be sent (the server's RESET_CODE_MINUTES and NEW_CODE_COOLDOWN_SECONDS). */
+const val RESET_CODE_MINUTES = 15
+const val RESET_CODE_RESEND_SECONDS = 60
+
+private const val SERVER_UNREACHABLE_MESSAGE =
+    "We couldn't reach the server just now. Please check your connection and try again."
+
+/** For a server that doesn't have the reset endpoints yet. */
+private const val RESET_UNAVAILABLE_MESSAGE =
+    "Resetting your password isn't available just yet. Please ask your clinician for help."
+
+/**
+ * Client: replaces the signed-in client's password_hash. The server checks that [sessionToken]
+ * belongs to [email] and that [oldPassword] is their current password. On a refusal,
+ * errorMessage is worded for the person changing it.
+ */
+fun changeClientPassword(email: String, sessionToken: String, oldPassword: String, newPassword: String): WriteResult {
+    val json = JSONObject().apply {
+        put("email", email)
+        put("session_token", sessionToken)
+        put("old_password", oldPassword)
+        put("new_password", newPassword)
+    }
+    val response = postForResponse(CLIENT_CHANGE_PASSWORD_URL, json, alwaysTry = true)
+        ?: return WriteResult(success = false, serverReached = false, errorMessage = SERVER_UNREACHABLE_MESSAGE)
+    if (response.isSuccess) return WriteResult(success = true)
+
+    val message = when (response.code) {
+        400 -> "That current password doesn't match. Please try again."
+        401 -> "Your session has ended. Please sign in again, then change your password."
+        // A validation failure's detail echoes the submitted passwords, so it is never shown.
+        422 -> "Your new password needs at least $MIN_PASSWORD_LENGTH characters."
+        else -> "We couldn't change your password just now. Please try again in a little while."
+    }
+    return WriteResult(success = false, errorMessage = message)
+}
+
+/**
+ * Client: asks the server to email a password reset code to [email]. It answers the same
+ * whether or not the email has an account, so success doesn't mean one was sent.
+ */
+fun sendPasswordResetCode(email: String): WriteResult {
+    val json = JSONObject().apply { put("email", email) }
+    val response = postForResponse(CLIENT_FORGOT_PASSWORD_URL, json, alwaysTry = true)
+        ?: return WriteResult(success = false, serverReached = false, errorMessage = SERVER_UNREACHABLE_MESSAGE)
+    if (response.isSuccess) return WriteResult(success = true)
+
+    val message = when (response.code) {
+        404 -> RESET_UNAVAILABLE_MESSAGE
+        503 -> "We couldn't send the email just now. Please try again in a little while."
+        else -> "We couldn't send a reset code just now. Please try again in a little while."
+    }
+    return WriteResult(success = false, errorMessage = message)
+}
+
+/** Client: sets a new password using the code from the reset email. The server then signs the client out everywhere. */
+fun resetClientPassword(email: String, code: String, newPassword: String): WriteResult {
+    val json = JSONObject().apply {
+        put("email", email)
+        put("code", code)
+        put("new_password", newPassword)
+    }
+    val response = postForResponse(CLIENT_RESET_PASSWORD_URL, json, alwaysTry = true)
+        ?: return WriteResult(success = false, serverReached = false, errorMessage = SERVER_UNREACHABLE_MESSAGE)
+    if (response.isSuccess) return WriteResult(success = true)
+
+    val message = when (response.code) {
+        400 -> "That code isn't right or has expired. Check the email, or ask for a new code."
+        404 -> RESET_UNAVAILABLE_MESSAGE
+        // As with change-password, a validation failure's detail echoes the password.
+        422 -> "Your new password needs at least $MIN_PASSWORD_LENGTH characters."
+        else -> "We couldn't reset your password just now. Please try again in a little while."
+    }
+    return WriteResult(success = false, errorMessage = message)
 }
 
 /**

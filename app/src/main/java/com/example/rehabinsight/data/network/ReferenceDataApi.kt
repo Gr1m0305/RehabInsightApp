@@ -7,6 +7,7 @@ import com.example.rehabinsight.data.Task
 import com.example.rehabinsight.data.TaskCategory
 import com.example.rehabinsight.data.TaskRule
 import com.example.rehabinsight.data.UniversalAppSetting
+import org.json.JSONObject
 
 /*
  * The tables every client shares and only reads: Category, Article, Task, Task_Category,
@@ -23,18 +24,24 @@ fun fetchCategories(): List<Category>? =
         )
     }
 
-fun fetchArticles(): List<Article>? =
-    rowsFrom(getForResponse(ARTICLE_LIST_URL)) { row ->
+/**
+ * The active Article rows, for a signed-in client. The server sends the body as "body", and in
+ * banner_image the photo itself (Base64-encoded) rather than its file name.
+ */
+fun fetchArticles(sessionToken: String): List<Article>? {
+    val json = JSONObject().apply { put("session_token", sessionToken) }
+    return rowsFrom(postForResponse(ARTICLES_URL, json)) { row ->
         Article(
             articleId = row.intOrNull("article_id") ?: return@rowsFrom null,
             title = row.stringOrNull("title").orEmpty(),
-            bodyText = row.stringOrNull("body_text").orEmpty(),
+            bodyText = (row.stringOrNull("body") ?: row.stringOrNull("body_text")).orEmpty(),
             bannerImage = row.stringOrNull("banner_image"),
             isActive = row.booleanOr("is_active", true),
             publishedAt = row.dateTimeOrNull("published_at"),
             sortOrder = row.intOrNull("sort_order") ?: 0
         )
     }
+}
 
 /** Task rows. The app's own timeLabel / isVigorous have no column, so they come through unset. */
 fun fetchTasks(): List<Task>? =

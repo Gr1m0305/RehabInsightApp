@@ -35,6 +35,7 @@ val StreakWarm = Color(0xFFF2A65A)
 val RehabError = Color(0xFFB94A5F)
 val RehabErrorSoft = Color(0xFFFBECEF)
 
-// The streak plant (see StreakPlant): its stem and darker leaves are SuccessGreen, its pot rim StreakWarm
+// The streak plant (see StreakPlantBubble): its stem and darker leaves are SuccessGreen, the hills it grows from these
 val PlantLeafLight = Color(0xFF86CDAE)
-val PlantPot = Color(0xFFE2975A)
+val PlantGroundFar = Color(0xFFD3EFE2)
+val PlantGroundNear = Color(0xFFBDE5D2)

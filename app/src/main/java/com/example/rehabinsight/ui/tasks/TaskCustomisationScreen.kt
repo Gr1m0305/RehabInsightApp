@@ -184,7 +184,8 @@ fun TaskEditorDialog(
     categories: List<Category>,
     title: String,
     onDismiss: () -> Unit,
-    onSave: (String, Int) -> Unit
+    onSave: (String, Int) -> Unit,
+    placeholder: String = "Task name"
 ) {
     var text by remember { mutableStateOf(initialTitle) }
     var category by remember { mutableStateOf(initialCategory) }
@@ -201,7 +202,7 @@ fun TaskEditorDialog(
                 RehabTextField(
                     value = text,
                     onValueChange = { text = it },
-                    placeholder = "Task name"
+                    placeholder = placeholder
                 )
                 Spacer(Modifier.height(20.dp))
                 // The category name is backend-only: users pick by colour and never see the label.

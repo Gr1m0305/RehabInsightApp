@@ -43,6 +43,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.dp
 import com.example.rehabinsight.data.CheckInAnswers
+import com.example.rehabinsight.data.DailyQuestion
 import com.example.rehabinsight.data.FiveLevel
 import com.example.rehabinsight.ui.components.CalmPage
 import com.example.rehabinsight.ui.components.CircleIconButton
@@ -62,7 +63,7 @@ import java.util.Locale
 
 private data class LevelOption(
     val level: FiveLevel,
-    val subtitle: String,
+    val subtitle: String?,
     val icon: ImageVector,
     val color: Color
 )
@@ -110,12 +111,19 @@ private fun optionsFor(question: Int): List<LevelOption> = when (question) {
         LevelOption(FiveLevel.LOW, "Hard to get started.", Icons.Rounded.SentimentDissatisfied, lowColor),
         LevelOption(FiveLevel.STRUGGLING, "No motivation at all.", Icons.Rounded.SentimentVeryDissatisfied, strugglingColor)
     )
-    else -> listOf( // pain (optional)
+    PAIN_STEP -> listOf( // pain (optional)
         LevelOption(FiveLevel.GREAT, "No pain or discomfort.", Icons.Rounded.SentimentVerySatisfied, greatColor),
         LevelOption(FiveLevel.GOOD, "Minimal, barely noticeable.", Icons.Rounded.SentimentSatisfied, goodColor),
         LevelOption(FiveLevel.OKAY, "Some mild discomfort.", Icons.Rounded.SentimentNeutral, okayColor),
         LevelOption(FiveLevel.LOW, "Noticeable pain today.", Icons.Rounded.SentimentDissatisfied, lowColor),
         LevelOption(FiveLevel.STRUGGLING, "Significant pain.", Icons.Rounded.SentimentVeryDissatisfied, strugglingColor)
+    )
+    else -> listOf( // one of the client's own questions (optional): any wording fits, so no subtitles
+        LevelOption(FiveLevel.GREAT, null, Icons.Rounded.SentimentVerySatisfied, greatColor),
+        LevelOption(FiveLevel.GOOD, null, Icons.Rounded.SentimentSatisfied, goodColor),
+        LevelOption(FiveLevel.OKAY, null, Icons.Rounded.SentimentNeutral, okayColor),
+        LevelOption(FiveLevel.LOW, null, Icons.Rounded.SentimentDissatisfied, lowColor),
+        LevelOption(FiveLevel.STRUGGLING, null, Icons.Rounded.SentimentVeryDissatisfied, strugglingColor)
     )
 }
 
@@ -128,15 +136,20 @@ private val questionTitles = listOf(
     "Any pain or discomfort?"
 )
 
+/** The pain question; it and every question after it (the client's own) can be skipped on its own. */
+private const val PAIN_STEP = 5
+
 private fun greetingFor(time: LocalTime): String = when (time.hour) {
     in 5..11 -> "Good morning"
     in 12..17 -> "Good afternoon"
     else -> "Good evening"
 }
 
+/** [ownQuestions] are the client's own questions, asked after the built-in ones. */
 @Composable
 fun DailyCheckInScreen(
     userName: String,
+    ownQuestions: List<DailyQuestion>,
     onSubmit: (CheckInAnswers) -> Unit,
     onSkipAll: () -> Unit
 ) {
@@ -146,6 +159,14 @@ fun DailyCheckInScreen(
     var stress by remember { mutableStateOf<FiveLevel?>(null) }
     var sleep by remember { mutableStateOf<FiveLevel?>(null) }
     var motivation by remember { mutableStateOf<FiveLevel?>(null) }
+    var pain by remember { mutableStateOf<FiveLevel?>(null) }
+    var ownAnswers by remember { mutableStateOf(mapOf<Int, FiveLevel>()) }
+    // Fixed once the check-in opens, so a question added or removed meanwhile can't shift the steps.
+    val questions = remember { ownQuestions }
+    val lastStep = PAIN_STEP + questions.size
+
+    fun titleFor(shownStep: Int): String =
+        if (shownStep <= PAIN_STEP) questionTitles[shownStep] else questions[shownStep - PAIN_STEP - 1].questionText
 
     val today = LocalDate.now()
     val dateLabel = remember(today) {
@@ -155,7 +176,7 @@ fun DailyCheckInScreen(
         listOf(greetingFor(LocalTime.now()), userName).filter { it.isNotBlank() }.joinToString(", ")
     }
 
-    fun finish(pain: FiveLevel?) {
+    fun finish() {
         onSubmit(
             CheckInAnswers(
                 date = today,
@@ -164,21 +185,27 @@ fun DailyCheckInScreen(
                 stress = stress ?: FiveLevel.OKAY,
                 sleep = sleep ?: FiveLevel.OKAY,
                 motivation = motivation ?: FiveLevel.OKAY,
-                pain = pain
+                pain = pain,
+                ownAnswers = ownAnswers
             )
         )
     }
 
-    fun selectAndAdvance(level: FiveLevel) {
+    /** Records [level] for this step (null skips it), then moves on, or finishes after the last question. */
+    fun answerAndAdvance(level: FiveLevel?) {
         when (step) {
             0 -> mood = level
             1 -> energy = level
             2 -> stress = level
             3 -> sleep = level
             4 -> motivation = level
-            5 -> { finish(level); return }
+            PAIN_STEP -> pain = level
+            else -> {
+                val questionId = questions[step - PAIN_STEP - 1].questionId
+                ownAnswers = if (level == null) ownAnswers - questionId else ownAnswers + (questionId to level)
+            }
         }
-        step++
+        if (step == lastStep) finish() else step++
     }
 
     GradientScreenBackground {
@@ -199,7 +226,7 @@ fun DailyCheckInScreen(
                 }
                 StepDots(
                     current = step,
-                    total = questionTitles.size,
+                    total = lastStep + 1,
                     modifier = Modifier.align(Alignment.Center)
                 )
                 SoftChip(
@@ -217,11 +244,11 @@ fun DailyCheckInScreen(
 
                 Crossfade(targetState = step, animationSpec = tween(300), label = "check-in-step") { shownStep ->
                     Column {
-                        Text(questionTitles[shownStep], style = MaterialTheme.typography.headlineMedium)
+                        Text(titleFor(shownStep), style = MaterialTheme.typography.headlineMedium)
                         Spacer(Modifier.height(22.dp))
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             optionsFor(shownStep).forEach { option ->
-                                LevelOptionCard(option) { selectAndAdvance(option.level) }
+                                LevelOptionCard(option) { answerAndAdvance(option.level) }
                             }
                         }
                     }
@@ -247,14 +274,14 @@ fun DailyCheckInScreen(
                 }
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    if (step == 5) "Skip for now" else "Skip check-in for today",
+                    if (step >= PAIN_STEP) "Skip for now" else "Skip check-in for today",
                     style = MaterialTheme.typography.labelLarge,
                     color = RehabPrimaryDeep,
                     modifier = Modifier
                         .align(Alignment.CenterHorizontally)
                         .clip(MaterialTheme.shapes.small)
                         .clickable {
-                            if (step == 5) finish(null) else onSkipAll()
+                            if (step >= PAIN_STEP) answerAndAdvance(null) else onSkipAll()
                         }
                         .padding(horizontal = 16.dp, vertical = 12.dp)
                 )
@@ -303,7 +330,9 @@ private fun LevelOptionCard(option: LevelOption, onClick: () -> Unit) {
             Spacer(Modifier.width(14.dp))
             Column {
                 Text(option.level.label, style = MaterialTheme.typography.titleMedium)
-                Text(option.subtitle, style = MaterialTheme.typography.bodySmall, color = RehabTextSecondary)
+                option.subtitle?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = RehabTextSecondary)
+                }
             }
         }
     }

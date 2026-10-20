@@ -148,14 +148,26 @@ data class QuestionTemplate(
     val isSetupQuestion: Boolean get() = questionOrder < 100
 }
 
-/** Daily_Question table. A per-client materialised copy of a Question_Template. */
+/**
+ * Daily_Question table. A per-client materialised copy of a Question_Template, or (questionOrder
+ * in [OWN_QUESTION_ORDERS], inside the Daily Check-In band) a question the client wrote themselves.
+ */
 data class DailyQuestion(
     val questionId: Int,
     val categoryId: Int? = null,
     val clientId: Int? = null,
     val questionOrder: Int,
     val questionText: String
-)
+) {
+    val isOwnQuestion: Boolean get() = questionOrder in OWN_QUESTION_ORDERS
+
+    companion object {
+        val OWN_QUESTION_ORDERS = 150..199
+
+        /** How many questions a client can add from the app, so the check-in stays quick. */
+        const val MAX_OWN_QUESTIONS = 4
+    }
+}
 
 /** Daily_Checkin table. One row per check-in "session" a client completes (setup counts as the first). */
 data class DailyCheckin(

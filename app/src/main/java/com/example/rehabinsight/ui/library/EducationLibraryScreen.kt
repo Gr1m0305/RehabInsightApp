@@ -194,7 +194,7 @@ private fun ArticleCard(article: Article, modifier: Modifier = Modifier, onClick
                 .fillMaxWidth()
                 .height(180.dp)
         ) {
-            ArticleBanner(visuals, Modifier.matchParentSize())
+            ArticleBanner(article, visuals, Modifier.matchParentSize())
             // Scrim so the title stays legible over any photo, with a faint tint up top for very bright skies.
             Box(
                 modifier = Modifier
@@ -224,9 +224,18 @@ private fun ArticleCard(article: Article, modifier: Modifier = Modifier, onClick
     }
 }
 
+/** The photo the server sent for the article if there is one, else the built-in one. */
 @Composable
-private fun ArticleBanner(visuals: ArticleVisuals?, modifier: Modifier = Modifier) {
-    if (visuals != null) {
+private fun ArticleBanner(article: Article, visuals: ArticleVisuals?, modifier: Modifier = Modifier) {
+    val serverBanner = rememberServerBanner(article)
+    if (serverBanner != null) {
+        Image(
+            bitmap = serverBanner,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = modifier
+        )
+    } else if (visuals != null) {
         Image(
             painter = painterResource(visuals.banner),
             contentDescription = null,
@@ -265,6 +274,7 @@ private fun ArticleDetail(article: Article, onBack: () -> Unit) {
                 .height(248.dp)
         ) {
             ArticleBanner(
+                article,
                 visuals,
                 Modifier
                     .matchParentSize()

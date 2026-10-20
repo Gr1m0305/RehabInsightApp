@@ -4,14 +4,13 @@ import com.example.rehabinsight.data.ClientStreak
 import com.example.rehabinsight.data.ClientTask
 import com.example.rehabinsight.data.ClientTaskStatus
 import com.example.rehabinsight.data.DailyCheckin
-import com.example.rehabinsight.data.DailyQuestion
 import com.example.rehabinsight.data.Response
 import org.json.JSONObject
 import java.time.LocalDate
 
 /*
- * The tables that hold one client's own rows: Client_Streak, Client_Task, Daily_Question,
- * Daily_Checkin and Response. (Creating a Daily_Checkin is in CheckinApi.)
+ * The tables that hold one client's own rows: Client_Streak, Client_Task, and past Daily_Checkin
+ * and Response rows. (The server's own Daily_Question and check-in calls are in CheckinApi.)
  * The list calls return null when the server couldn't supply the rows.
  */
 
@@ -89,31 +88,6 @@ fun saveClientTaskStatus(caller: Caller, clientTask: ClientTask): WriteResult {
     return writeResultFrom(postForResponse(CLIENT_TASK_UPDATE_URL, json))
 }
 
-// ----- Daily_Question -----
-
-fun fetchDailyQuestions(caller: Caller, clientId: Int): List<DailyQuestion>? {
-    val json = JSONObject().putCaller(caller).apply { put("client_id", clientId) }
-    return rowsFrom(postForResponse(DAILY_QUESTION_LIST_URL, json)) { row ->
-        DailyQuestion(
-            questionId = row.intOrNull("question_id") ?: return@rowsFrom null,
-            categoryId = row.intOrNull("category_id"),
-            clientId = row.intOrNull("client_id"),
-            questionOrder = row.intOrNull("question_order") ?: return@rowsFrom null,
-            questionText = row.stringOrNull("question_text").orEmpty()
-        )
-    }
-}
-
-fun createDailyQuestion(caller: Caller, question: DailyQuestion): WriteResult {
-    val json = JSONObject().putCaller(caller).apply {
-        putNullable("category_id", question.categoryId)
-        putNullable("client_id", question.clientId)
-        put("question_order", question.questionOrder)
-        put("question_text", question.questionText)
-    }
-    return writeResultFrom(postForResponse(DAILY_QUESTION_CREATE_URL, json), idKey = "question_id")
-}
-
 // ----- Daily_Checkin -----
 
 fun fetchDailyCheckins(caller: Caller, clientId: Int): List<DailyCheckin>? {
@@ -141,13 +115,4 @@ fun fetchResponses(caller: Caller, clientId: Int): List<Response>? {
             answer = row.intOrNull("answer") ?: return@rowsFrom null
         )
     }
-}
-
-fun createResponse(caller: Caller, response: Response): WriteResult {
-    val json = JSONObject().putCaller(caller).apply {
-        put("question_id", response.questionId)
-        put("checkin_id", response.checkinId)
-        put("answer", response.answer)
-    }
-    return writeResultFrom(postForResponse(RESPONSE_CREATE_URL, json), idKey = "response_id")
 }
