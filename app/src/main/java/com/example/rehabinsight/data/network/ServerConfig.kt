@@ -6,17 +6,17 @@ const val SERVER_BASE_URL: String = "http://10.0.2.2:8000"
  * One address per server call, grouped by database table. Every call sends and receives JSON
  * whose field names are the table's column names.
  *
+ * Every call is a POST. Only client/create and client/login (and the password reset pair) are
+ * made before sign-in; every other call waits until the client is signed in and carries their
+ * session_token, from which the server works out whose rows they are. The admin dashboard has no
+ * server sign-in yet, so it makes no server calls at all.
+ *
  * On the server today (RehabInsightServer, api/): everything under /api/client/,
- * /api/daily-checkin/ and /api/articles/. Each of those is a POST that names the client by their
- * session_token alone; the server works out whose rows they are from it.
+ * /api/daily-checkin/ and /api/articles/. The rest are what the app expects; until the server
+ * has them the app carries on with the data it holds itself.
  *
- * The rest are what the app expects; until the server has them the app carries on with the data
- * it holds itself. A call that reads or changes one client's rows carries that client's
- * session_token; a call made from the admin dashboard carries admin_id instead (see Caller).
- *
- *  - ".../list" returns an array of rows. The shared tables are plain GETs; the per-client ones
- *    are POSTs whose body says whose rows are wanted (client_id, or admin_id for all of an
- *    admin's clients).
+ *  - ".../list" returns an array of rows. The per-client ones also say whose rows are wanted
+ *    (client_id).
  *  - ".../create" returns the new row's primary key under its column name, as client/create does.
  *  - ".../update" identifies the row by its primary key and sends the columns to store.
  */
@@ -65,7 +65,7 @@ const val TASK_CATEGORY_CREATE_URL: String = "$SERVER_BASE_URL/api/task_category
 const val TASK_CATEGORY_UPDATE_URL: String = "$SERVER_BASE_URL/api/task_category/update"
 const val TASK_RULE_LIST_URL: String = "$SERVER_BASE_URL/api/task_rule/list"
 
-// Category, Question_Template, Streak_Milestone, Universal_App_Setting (read-only)
+// Category, Question_Template, Streak_Milestone, Universal_App_Setting (read-only, shared by every client)
 const val CATEGORY_LIST_URL: String = "$SERVER_BASE_URL/api/category/list"
 const val QUESTION_TEMPLATE_LIST_URL: String = "$SERVER_BASE_URL/api/question_template/list"
 const val STREAK_MILESTONES_URL: String = "$SERVER_BASE_URL/api/milestones"

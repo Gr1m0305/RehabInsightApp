@@ -12,11 +12,14 @@ import org.json.JSONObject
 /*
  * The tables every client shares and only reads: Category, Article, Task, Task_Category,
  * Task_Rule, Question_Template and Universal_App_Setting. (Streak_Milestone is in MilestoneApi.)
- * Each returns null when the server couldn't supply the table.
+ * Like every call but sign-up and sign-in, each is made only once the client is signed in, and
+ * carries their session_token. Each returns null when the server couldn't supply the table.
  */
 
-fun fetchCategories(): List<Category>? =
-    rowsFrom(getForResponse(CATEGORY_LIST_URL)) { row ->
+private fun sessionBody(sessionToken: String): JSONObject = JSONObject().apply { put("session_token", sessionToken) }
+
+fun fetchCategories(sessionToken: String): List<Category>? =
+    rowsFrom(postForResponse(CATEGORY_LIST_URL, sessionBody(sessionToken))) { row ->
         Category(
             categoryId = row.intOrNull("category_id") ?: return@rowsFrom null,
             name = row.stringOrNull("name").orEmpty(),
@@ -25,12 +28,11 @@ fun fetchCategories(): List<Category>? =
     }
 
 /**
- * The active Article rows, for a signed-in client. The server sends the body as "body", and in
- * banner_image the photo itself (Base64-encoded) rather than its file name.
+ * The active Article rows. The server sends the body as "body", and in banner_image the photo
+ * itself (Base64-encoded) rather than its file name.
  */
-fun fetchArticles(sessionToken: String): List<Article>? {
-    val json = JSONObject().apply { put("session_token", sessionToken) }
-    return rowsFrom(postForResponse(ARTICLES_URL, json)) { row ->
+fun fetchArticles(sessionToken: String): List<Article>? =
+    rowsFrom(postForResponse(ARTICLES_URL, sessionBody(sessionToken))) { row ->
         Article(
             articleId = row.intOrNull("article_id") ?: return@rowsFrom null,
             title = row.stringOrNull("title").orEmpty(),
@@ -41,11 +43,10 @@ fun fetchArticles(sessionToken: String): List<Article>? {
             sortOrder = row.intOrNull("sort_order") ?: 0
         )
     }
-}
 
 /** Task rows. The app's own timeLabel / isVigorous have no column, so they come through unset. */
-fun fetchTasks(): List<Task>? =
-    rowsFrom(getForResponse(TASK_LIST_URL)) { row ->
+fun fetchTasks(sessionToken: String): List<Task>? =
+    rowsFrom(postForResponse(TASK_LIST_URL, sessionBody(sessionToken))) { row ->
         Task(
             taskId = row.intOrNull("task_id") ?: return@rowsFrom null,
             articleId = row.intOrNull("article_id"),
@@ -58,8 +59,8 @@ fun fetchTasks(): List<Task>? =
         )
     }
 
-fun fetchTaskCategories(): List<TaskCategory>? =
-    rowsFrom(getForResponse(TASK_CATEGORY_LIST_URL)) { row ->
+fun fetchTaskCategories(sessionToken: String): List<TaskCategory>? =
+    rowsFrom(postForResponse(TASK_CATEGORY_LIST_URL, sessionBody(sessionToken))) { row ->
         TaskCategory(
             categoryId = row.intOrNull("category_id") ?: return@rowsFrom null,
             taskId = row.intOrNull("task_id") ?: return@rowsFrom null,
@@ -67,8 +68,8 @@ fun fetchTaskCategories(): List<TaskCategory>? =
         )
     }
 
-fun fetchTaskRules(): List<TaskRule>? =
-    rowsFrom(getForResponse(TASK_RULE_LIST_URL)) { row ->
+fun fetchTaskRules(sessionToken: String): List<TaskRule>? =
+    rowsFrom(postForResponse(TASK_RULE_LIST_URL, sessionBody(sessionToken))) { row ->
         TaskRule(
             ruleId = row.intOrNull("rule_id") ?: return@rowsFrom null,
             categoryId = row.intOrNull("category_id") ?: return@rowsFrom null,
@@ -78,8 +79,8 @@ fun fetchTaskRules(): List<TaskRule>? =
         )
     }
 
-fun fetchQuestionTemplates(): List<QuestionTemplate>? =
-    rowsFrom(getForResponse(QUESTION_TEMPLATE_LIST_URL)) { row ->
+fun fetchQuestionTemplates(sessionToken: String): List<QuestionTemplate>? =
+    rowsFrom(postForResponse(QUESTION_TEMPLATE_LIST_URL, sessionBody(sessionToken))) { row ->
         QuestionTemplate(
             templateQuestionId = row.intOrNull("template_question_id") ?: return@rowsFrom null,
             categoryId = row.intOrNull("category_id"),
@@ -88,8 +89,8 @@ fun fetchQuestionTemplates(): List<QuestionTemplate>? =
         )
     }
 
-fun fetchUniversalAppSettings(): List<UniversalAppSetting>? =
-    rowsFrom(getForResponse(SETTING_LIST_URL)) { row ->
+fun fetchUniversalAppSettings(sessionToken: String): List<UniversalAppSetting>? =
+    rowsFrom(postForResponse(SETTING_LIST_URL, sessionBody(sessionToken))) { row ->
         UniversalAppSetting(
             settingId = row.intOrNull("setting_id") ?: return@rowsFrom null,
             settingKey = row.stringOrNull("setting_key") ?: return@rowsFrom null,

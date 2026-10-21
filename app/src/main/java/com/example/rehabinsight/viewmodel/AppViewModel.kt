@@ -175,10 +175,6 @@ class AppViewModel : ViewModel() {
     /** Changes still to be sent, oldest first, each with the caller it was made for. */
     private val unsent = ArrayDeque<Pair<Caller, suspend (Caller) -> Boolean>>()
 
-    init {
-        loadSharedTables()
-    }
-
     private fun today(): LocalDate = LocalDate.now()
 
     // ---------------------------------------------------------------------
@@ -196,9 +192,14 @@ class AppViewModel : ViewModel() {
      * returns false only when the server couldn't be reached; the change is then kept and tried
      * again ahead of the next one. A change the server refuses is dropped, and the app's copy
      * simply stays as it is.
+     *
+     * The server only answers calls that carry a session token, so a change made without one (by
+     * a demo account, or on the admin dashboard, which has no server sign-in yet) stays on this
+     * device.
      */
     private fun mirror(write: suspend (Caller) -> Boolean) {
         val caller = currentCaller()
+        if (caller.sessionToken == null) return
         viewModelScope.launch {
             serverQueue.withLock {
                 unsent += caller to write
@@ -254,20 +255,22 @@ class AppViewModel : ViewModel() {
     }
 
     /**
-     * Category, Task, Task_Category, Task_Rule, Question_Template, Streak_Milestone and
-     * Universal_App_Setting: the tables every client shares. Built-in rows the server doesn't
-     * return are kept, because the checklist and guidance rules refer to the built-in task ids.
-     * (Articles are only served to a signed-in client; see [loadArticles].)
+     * Category, Article, Task, Task_Category, Task_Rule, Question_Template, Streak_Milestone and
+     * Universal_App_Setting: the tables every client shares, loaded once a client has signed in
+     * (the server serves them only with a session token). Until then, and for rows the server
+     * doesn't return, the built-in ones are used: the checklist and guidance rules refer to the
+     * built-in task ids.
      */
-    private fun loadSharedTables() {
+    private fun loadSharedTables(token: String) {
         viewModelScope.launch {
-            val categories = onServer { fetchCategories() }
-            val tasks = onServer { fetchTasks() }
-            val taskCategories = onServer { fetchTaskCategories() }
-            val taskRules = onServer { fetchTaskRules() }
-            val questionTemplates = onServer { fetchQuestionTemplates() }
-            val settings = onServer { fetchUniversalAppSettings() }
-            val milestones = onServer { fetchStreakMilestones() }
+            val categories = onServer { fetchCategories(token) }
+            val articles = onServer { fetchArticles(token) }
+            val tasks = onServer { fetchTasks(token) }
+            val taskCategories = onServer { fetchTaskCategories(token) }
+            val taskRules = onServer { fetchTaskRules(token) }
+            val questionTemplates = onServer { fetchQuestionTemplates(token) }
+            val settings = onServer { fetchUniversalAppSettings(token) }
+            val milestones = onServer { fetchStreakMilestones(token) }
 
             _uiState.update { state ->
                 // timeLabel and isVigorous have no database column, so they carry over from the app's own row.
@@ -277,6 +280,7 @@ class AppViewModel : ViewModel() {
                 }
                 state.copy(
                     categories = state.categories.mergedWith(categories) { it.categoryId },
+                    articles = state.articles.mergedWith(articles) { it.articleId },
                     tasks = state.tasks.mergedWith(serverTasks) { it.taskId },
                     // The app gives each task one colour, so a task's row is matched on task_id alone.
                     taskCategories = state.taskCategories.mergedWith(taskCategories) { it.taskId },
@@ -290,14 +294,6 @@ class AppViewModel : ViewModel() {
                     }
                 )
             }
-        }
-    }
-
-    /** Article: the server's library, merged over the built-in one. Only a signed-in client is sent it. */
-    private fun loadArticles(token: String) {
-        viewModelScope.launch {
-            val articles = onServer { fetchArticles(token) }
-            _uiState.update { it.copy(articles = it.articles.mergedWith(articles) { article -> article.articleId }) }
         }
     }
 
@@ -539,7 +535,7 @@ class AppViewModel : ViewModel() {
                 )
                 // Creating a client doesn't start a session, so sign in straight away to get one.
                 sessionToken = onServer { loginClient(trimmedEmail, password) }.sessionToken
-                sessionToken?.let(::loadArticles)
+                sessionToken?.let(::loadSharedTables)
                 ownTaskIds.clear()
 
                 _uiState.update {
@@ -599,7 +595,7 @@ class AppViewModel : ViewModel() {
             sessionToken = token.takeIf { serverClientId != null }
             ownTaskIds.clear()
             if (serverClientId != null) loadClientFromServer(serverClientId, trimmedEmail)
-            sessionToken?.let(::loadArticles)
+            sessionToken?.let(::loadSharedTables)
 
             val todaysCheckIn = todaysCheckInFromResponses(clientId)
             _uiState.update {
@@ -630,13 +626,15 @@ class AppViewModel : ViewModel() {
         _uiState.update { it.copy(currentClientId = null, isAdminMode = false, latestCheckIn = null) }
     }
 
+    /**
+     * Opens the admin dashboard with the passcode checked on this device. The server has no
+     * admin sign-in yet, so the dashboard works from the data the app holds and calls nothing.
+     */
     fun adminLogin(passcode: String): Boolean {
         val admin = _uiState.value.admins.find { it.passwordHash == passcode }
         return if (admin != null) {
             signedInAdminId = admin.adminId
             _uiState.update { it.copy(isAdminMode = true, currentClientId = null, authError = null) }
-            loadSharedTables()
-            loadAdminTables(admin.adminId)
             true
         } else {
             _uiState.update { it.copy(authError = "Incorrect admin passcode.") }
@@ -647,35 +645,6 @@ class AppViewModel : ViewModel() {
     fun adminLogout() {
         signedInAdminId = null
         _uiState.update { it.copy(isAdminMode = false) }
-    }
-
-    /**
-     * Admin Dashboard: the admin's Client rows with their Client_Streak and today's Client_Task
-     * rows. Once the server supplies real clients they take the place of the demo ones.
-     */
-    private fun loadAdminTables(adminId: Int) {
-        viewModelScope.launch {
-            serverQueue.withLock {
-                val caller = Caller(adminId = adminId)
-                val clients = onServer { fetchClients(caller) }
-                if (clients.isNullOrEmpty()) return@withLock
-                val streaks = onServer { fetchClientStreaks(caller) }
-                val todaysTasks = onServer { fetchClientTasks(caller, dueDate = today()) }?.sortedBy { it.clientTaskId }
-
-                _uiState.update { state ->
-                    val heldClients = state.clients.associateBy { it.clientId }
-                    val serverClients = clients.map { it.copy(passwordHash = heldClients[it.clientId]?.passwordHash.orEmpty()) }
-                    state.copy(
-                        clients = state.clients.filterNot { LocalIds.isLocal(it.clientId) }
-                            .mergedWith(serverClients) { it.clientId },
-                        clientStreaks = state.clientStreaks.filterNot { LocalIds.isLocal(it.clientId) }
-                            .mergedWith(streaks) { it.clientId },
-                        clientTasks = state.clientTasks.filterNot { LocalIds.isLocal(it.clientId) }
-                            .mergedWith(todaysTasks) { it.clientTaskId }
-                    )
-                }
-            }
-        }
     }
 
     // ---------------------------------------------------------------------

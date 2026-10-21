@@ -228,7 +228,8 @@ fun RehabNavGraph() {
             }
 
             composable(Routes.ADMIN_DASHBOARD) {
-                AdminDashboardScreen(
+                // Reading uiState here is also what redraws the dashboard after a library edit.
+                if (uiState.isAdminMode) AdminDashboardScreen(
                     progressSummaries = viewModel.clientProgressSummaries(),
                     tasksByCategory = viewModel.tasksByCategory(),
                     onAddTask = { title, categoryId -> viewModel.addLibraryTask(title, categoryId) },

@@ -4,10 +4,8 @@ import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.ConnectException
-import java.net.HttpURLConnection
 import java.net.NoRouteToHostException
 import java.net.SocketTimeoutException
-import java.net.URL
 import java.net.UnknownHostException
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -91,36 +89,6 @@ internal fun postForResponse(url: String, json: JSONObject, alwaysTry: Boolean =
         noteFailure(error)
         null
     }
-}
-
-/** GET counterpart of [postForResponse], for the shared read-only tables. */
-internal fun getForResponse(url: String): ApiResponse? {
-    // Reading is safe to repeat, so a reply that gets dropped part-way is asked for once more.
-    repeat(2) {
-        if (serverRecentlyUnreachable()) return null
-        try {
-            val connection = URL(url).openConnection() as HttpURLConnection
-            connection.requestMethod = "GET"
-            connection.connectTimeout = CONNECT_TIMEOUT_MILLIS
-            connection.readTimeout = READ_TIMEOUT_MILLIS
-            connection.setRequestProperty("Content-Type", "application/json")
-
-            val responseCode = connection.responseCode
-            val body = if (responseCode in 200..299) {
-                connection.inputStream.bufferedReader().use { it.readText() }
-            } else {
-                connection.errorStream?.bufferedReader()?.use { it.readText() }
-            }
-
-            connection.disconnect()
-            Log.d(TAG, "GET $url -> $responseCode")
-            return ApiResponse(responseCode, body)
-        } catch (error: Exception) {
-            Log.e(TAG, "GET $url failed", error)
-            noteFailure(error)
-        }
-    }
-    return null
 }
 
 /**
