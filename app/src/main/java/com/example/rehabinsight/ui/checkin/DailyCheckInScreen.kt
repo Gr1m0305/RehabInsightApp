@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.SentimentDissatisfied
 import androidx.compose.material.icons.rounded.SentimentNeutral
@@ -81,7 +80,7 @@ private fun optionsFor(question: Int): List<LevelOption> = when (question) {
         LevelOption(FiveLevel.GOOD, "Calm, steady, and feeling grounded.", Icons.Rounded.SentimentSatisfied, goodColor),
         LevelOption(FiveLevel.OKAY, "Just drifting, average, or quiet.", Icons.Rounded.SentimentNeutral, okayColor),
         LevelOption(FiveLevel.LOW, "Feeling heavy, tired, or unmotivated.", Icons.Rounded.SentimentDissatisfied, lowColor),
-        LevelOption(FiveLevel.STRUGGLING, "Anxious, overwhelmed, or in pain.", Icons.Rounded.Favorite, strugglingColor)
+        LevelOption(FiveLevel.STRUGGLING, "Anxious, overwhelmed, or in pain.", Icons.Rounded.SentimentVeryDissatisfied, strugglingColor)
     )
     1 -> listOf( // energy
         LevelOption(FiveLevel.GREAT, "Energized and ready to go.", Icons.Rounded.SentimentVerySatisfied, greatColor),
