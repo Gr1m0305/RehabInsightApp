@@ -1,5 +1,6 @@
 package com.example.rehabinsight.ui.admin
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -94,6 +95,11 @@ fun AdminDashboardScreen(
     onLogout: () -> Unit
 ) {
     var section by remember { mutableStateOf(AdminSection.OVERVIEW) }
+
+    // The system back key does what the screen's own Back and Exit buttons do.
+    BackHandler {
+        if (section != AdminSection.OVERVIEW) section = AdminSection.OVERVIEW else onLogout()
+    }
 
     GradientScreenBackground {
         Column(modifier = Modifier.fillMaxSize()) {

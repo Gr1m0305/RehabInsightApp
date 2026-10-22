@@ -22,11 +22,20 @@ private const val RETRY_AFTER_NANOS = 30_000_000_000L
 @Volatile
 private var unreachableUntil = Long.MIN_VALUE
 
-/** Who a request is made for, so the server can check they are allowed to make it. */
+/** The most a paged history call (".../history") returns at once; the server allows up to 200. */
+private const val PAGE_SIZE = 200
+
+/**
+ * Who a request is made for, so the server can check they are allowed to make it: a client by
+ * their session token, an admin by their email and password (the server has no admin session).
+ */
 data class Caller(
     val sessionToken: String? = null,
-    val adminId: Int? = null
-)
+    val adminEmail: String? = null,
+    val adminPassword: String? = null
+) {
+    val isSignedIn: Boolean get() = sessionToken != null || (adminEmail != null && adminPassword != null)
+}
 
 /** Outcome of a call that stores something. [id] is the primary key the server gave a new row. */
 data class WriteResult(
@@ -41,9 +50,13 @@ internal data class ApiResponse(val code: Int, val body: String?) {
     val isSuccess: Boolean get() = code in 200..299
 }
 
+/** The body of a call that needs nothing but the signed-in client's session token. */
+internal fun sessionBody(sessionToken: String): JSONObject = JSONObject().apply { put("session_token", sessionToken) }
+
 internal fun JSONObject.putCaller(caller: Caller): JSONObject = apply {
     caller.sessionToken?.let { put("session_token", it) }
-    caller.adminId?.let { put("admin_id", it) }
+    caller.adminEmail?.let { put("admin_email", it) }
+    caller.adminPassword?.let { put("admin_password", it) }
 }
 
 /** JSONObject.put drops a key whose value is null; this sends an explicit null so the server clears the column. */
@@ -104,6 +117,29 @@ internal fun <T> rowsFrom(response: ApiResponse?, parse: (JSONObject) -> T?): Li
         Log.e(TAG, "Could not read the server's rows", error)
         null
     }
+}
+
+/**
+ * Every row of a paged history call: asks for [PAGE_SIZE] rows at a time, from offset 0, until
+ * the server's "total" is reached. Null when any page fails, as with [rowsFrom].
+ */
+internal fun <T> allPagesFrom(url: String, body: JSONObject, parse: (JSONObject) -> T?): List<T>? {
+    val rows = mutableListOf<T>()
+    var offset = 0
+    while (true) {
+        val page = JSONObject(body.toString()).put("limit", PAGE_SIZE).put("offset", offset)
+        val response = postForResponse(url, page)
+        rows += rowsFrom(response, parse) ?: return null
+        val total = jsonObjectOrNull(response?.body)?.intOrNull("total") ?: return rows
+        offset += PAGE_SIZE
+        if (offset >= total) return rows
+    }
+}
+
+/** The object a successful response holds under [key] (e.g. {"client": {...}}), or null. */
+internal fun objectFrom(response: ApiResponse?, key: String): JSONObject? {
+    if (response == null || !response.isSuccess) return null
+    return jsonObjectOrNull(response.body)?.optJSONObject(key)
 }
 
 /** Accepts a bare array of rows, an object wrapping one (e.g. {"tasks": [...]}), or a single row. */

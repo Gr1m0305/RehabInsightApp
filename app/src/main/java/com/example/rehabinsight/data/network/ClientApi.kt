@@ -253,23 +253,40 @@ fun resetClientPassword(email: String, code: String, newPassword: String): Write
     return WriteResult(success = false, errorMessage = message)
 }
 
+/** A Client row as the server sends it. It never sends password hashes back, so that field comes through empty. */
+private fun clientFrom(row: JSONObject): Client? {
+    return Client(
+        clientId = row.intOrNull("client_id") ?: return null,
+        adminId = row.intOrNull("admin_id"),
+        firstName = row.stringOrNull("first_name").orEmpty(),
+        lastName = row.stringOrNull("last_name").orEmpty(),
+        email = row.stringOrNull("email").orEmpty(),
+        phone = row.stringOrNull("phone")?.ifBlank { null },
+        passwordHash = ""
+    )
+}
+
+/** The signed-in client's own Client row, or null if the server couldn't supply it. */
+fun fetchClientProfile(sessionToken: String): Client? {
+    val json = JSONObject().apply { put("session_token", sessionToken) }
+    return objectFrom(postForResponse(CLIENT_PROFILE_URL, json), "client")?.let(::clientFrom)
+}
+
 /**
- * Client rows: just [clientId]'s own when given, otherwise every client the calling admin looks
- * after. The server never sends password hashes back, so that field comes through empty.
+ * The clients an admin looks after. The server checks the admin's email and password on this
+ * call as on every admin call, so [accepted] also says whether they are right.
  */
-fun fetchClients(caller: Caller, clientId: Int? = null): List<Client>? {
-    val json = JSONObject().putCaller(caller).apply {
-        clientId?.let { put("client_id", it) }
-    }
-    return rowsFrom(postForResponse(CLIENT_LIST_URL, json)) { row ->
-        Client(
-            clientId = row.intOrNull("client_id") ?: return@rowsFrom null,
-            adminId = row.intOrNull("admin_id"),
-            firstName = row.stringOrNull("first_name").orEmpty(),
-            lastName = row.stringOrNull("last_name").orEmpty(),
-            email = row.stringOrNull("email").orEmpty(),
-            phone = row.stringOrNull("phone")?.ifBlank { null },
-            passwordHash = ""
-        )
-    }
+data class AdminClients(
+    val clients: List<Client>,
+    val accepted: Boolean,
+    /** False when the request never got an answer, as opposed to the server turning it down. */
+    val serverReached: Boolean
+)
+
+fun fetchAdminClients(caller: Caller): AdminClients {
+    val response = postForResponse(ADMIN_CLIENTS_URL, JSONObject().putCaller(caller), alwaysTry = true)
+        ?: return AdminClients(emptyList(), accepted = false, serverReached = false)
+    val clients = rowsFrom(response, ::clientFrom)
+        ?: return AdminClients(emptyList(), accepted = false, serverReached = true)
+    return AdminClients(clients, accepted = true, serverReached = true)
 }

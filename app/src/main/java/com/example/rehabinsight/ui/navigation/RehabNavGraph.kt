@@ -215,11 +215,14 @@ fun RehabNavGraph() {
             composable(Routes.ADMIN_LOGIN) {
                 AdminLoginScreen(
                     authError = uiState.authError,
+                    isBusy = uiState.authInProgress,
                     onClearError = { viewModel.clearAuthError() },
-                    onLogin = { passcode ->
-                        if (viewModel.adminLogin(passcode)) {
-                            navController.navigate(Routes.ADMIN_DASHBOARD) {
-                                popUpTo(Routes.ADMIN_LOGIN) { inclusive = true }
+                    onLogin = { email, password ->
+                        viewModel.adminLogin(email, password) { success ->
+                            if (success) {
+                                navController.navigate(Routes.ADMIN_DASHBOARD) {
+                                    popUpTo(Routes.ADMIN_LOGIN) { inclusive = true }
+                                }
                             }
                         }
                     },

@@ -7,7 +7,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AdminPanelSettings
+import androidx.compose.material.icons.rounded.Email
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.VisibilityOff
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.rehabinsight.ui.components.CalmPage
@@ -35,11 +41,14 @@ import com.example.rehabinsight.ui.theme.RehabTextSecondary
 @Composable
 fun AdminLoginScreen(
     authError: String?,
+    isBusy: Boolean,
     onClearError: () -> Unit,
-    onLogin: (String) -> Unit,
+    onLogin: (email: String, password: String) -> Unit,
     onBack: () -> Unit
 ) {
-    var passcode by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
 
     GradientScreenBackground {
         CalmPage(horizontalPadding = 24.dp, horizontalAlignment = Alignment.CenterHorizontally) {
@@ -49,7 +58,7 @@ fun AdminLoginScreen(
             Text("Admin access", style = MaterialTheme.typography.headlineMedium)
             Spacer(Modifier.height(6.dp))
             Text(
-                "Enter the admin passcode to view the dashboard.",
+                "Sign in with your admin account to view the dashboard.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = RehabTextSecondary,
                 textAlign = TextAlign.Center
@@ -58,19 +67,42 @@ fun AdminLoginScreen(
 
             SoftCard {
                 RehabTextField(
-                    value = passcode,
-                    onValueChange = { passcode = it; onClearError() },
-                    placeholder = "Admin passcode",
+                    value = email,
+                    onValueChange = { email = it; onClearError() },
+                    label = "Email address",
+                    placeholder = "you@example.com",
+                    leadingIcon = Icons.Rounded.Email,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                )
+                Spacer(Modifier.height(16.dp))
+                RehabTextField(
+                    value = password,
+                    onValueChange = { password = it; onClearError() },
+                    label = "Password",
+                    placeholder = "Enter your password",
                     leadingIcon = Icons.Rounded.Lock,
+                    trailingIcon = {
+                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                            Icon(
+                                if (passwordVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                                contentDescription = if (passwordVisible) "Hide password" else "Show password"
+                            )
+                        }
+                    },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    visualTransformation = PasswordVisualTransformation()
+                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation()
                 )
                 if (authError != null) {
                     Spacer(Modifier.height(14.dp))
                     GentleError(authError)
                 }
                 Spacer(Modifier.height(18.dp))
-                PrimaryButton(text = "Enter dashboard", onClick = { onLogin(passcode) })
+                // Signing in waits on the server, so the button says so rather than appearing to do nothing.
+                PrimaryButton(
+                    text = if (isBusy) "Signing you in…" else "Enter dashboard",
+                    enabled = !isBusy,
+                    onClick = { onLogin(email, password) }
+                )
             }
 
             Spacer(Modifier.height(12.dp))
