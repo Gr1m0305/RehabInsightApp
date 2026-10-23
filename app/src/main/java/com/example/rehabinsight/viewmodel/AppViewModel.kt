@@ -3,7 +3,6 @@ package com.example.rehabinsight.viewmodel
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.rehabinsight.data.Admin
 import com.example.rehabinsight.data.Article
 import com.example.rehabinsight.data.Category
 import com.example.rehabinsight.data.CheckInAnswers
@@ -21,30 +20,33 @@ import com.example.rehabinsight.data.LevelRating
 import com.example.rehabinsight.data.LocalIds
 import com.example.rehabinsight.data.MoodRating
 import com.example.rehabinsight.data.PainLevel
-import com.example.rehabinsight.data.QuestionTemplate
 import com.example.rehabinsight.data.Response
 import com.example.rehabinsight.data.RoutineRating
-import com.example.rehabinsight.data.SeedData
 import com.example.rehabinsight.data.SetupAnswers
 import com.example.rehabinsight.data.SleepRating
 import com.example.rehabinsight.data.StreakMilestone
 import com.example.rehabinsight.data.StressFrequency
 import com.example.rehabinsight.data.Task
 import com.example.rehabinsight.data.TaskCategory
-import com.example.rehabinsight.data.TaskRule
+import com.example.rehabinsight.data.TaskIds
 import com.example.rehabinsight.data.UniversalAppSetting
 import com.example.rehabinsight.data.network.Caller
 import com.example.rehabinsight.data.network.MIN_PASSWORD_LENGTH
+import com.example.rehabinsight.data.network.TaskRows
+import com.example.rehabinsight.data.network.UsageReport
 import com.example.rehabinsight.data.network.addDailyQuestion
 import com.example.rehabinsight.data.network.assignClientTask
 import com.example.rehabinsight.data.network.changeClientPassword
 import com.example.rehabinsight.data.network.completeClientTask
 import com.example.rehabinsight.data.network.createTask
+import com.example.rehabinsight.data.network.fetchAdminCategories
 import com.example.rehabinsight.data.network.fetchAdminClientStreak
 import com.example.rehabinsight.data.network.fetchAdminClientTasks
 import com.example.rehabinsight.data.network.fetchAdminClients
 import com.example.rehabinsight.data.network.fetchAdminTasks
+import com.example.rehabinsight.data.network.fetchAdminUsageReport
 import com.example.rehabinsight.data.network.fetchAnswerHistory
+import com.example.rehabinsight.data.network.fetchAppSettings
 import com.example.rehabinsight.data.network.fetchArticles
 import com.example.rehabinsight.data.network.fetchCategories
 import com.example.rehabinsight.data.network.fetchCheckedInToday
@@ -82,26 +84,26 @@ import java.time.temporal.ChronoUnit
 
 /**
  * The app's working copy of the database, shaped exactly like the ERD (one list per table).
- * Screens read and change this copy; [AppViewModel] loads it from the server where it can and
- * sends every change back. Until the server answers, each list starts from the built-in data.
+ * Screens read and change this copy; [AppViewModel] loads it from the server once someone signs
+ * in and sends every change back. The app holds no rows of its own: until the server answers,
+ * each list is empty.
  */
 @Immutable
 data class RehabUiState(
-    val admins: List<Admin> = SeedData.admins,
-    val clients: List<Client> = SeedData.demoClients,
-    val clientStreaks: List<ClientStreak> = SeedData.demoClientStreaks,
-    val categories: List<Category> = SeedData.categories,
-    val articles: List<Article> = SeedData.articles,
-    val tasks: List<Task> = SeedData.tasks,
-    val taskCategories: List<TaskCategory> = SeedData.taskCategories,
-    val taskRules: List<TaskRule> = SeedData.taskRules,
-    val clientTasks: List<ClientTask> = SeedData.demoClientTasks,
-    val questionTemplates: List<QuestionTemplate> = SeedData.questionTemplates,
+    val clients: List<Client> = emptyList(),
+    val clientStreaks: List<ClientStreak> = emptyList(),
+    val categories: List<Category> = emptyList(),
+    val articles: List<Article> = emptyList(),
+    val tasks: List<Task> = emptyList(),
+    val taskCategories: List<TaskCategory> = emptyList(),
+    val clientTasks: List<ClientTask> = emptyList(),
     val dailyQuestions: List<DailyQuestion> = emptyList(),
     val dailyCheckins: List<DailyCheckin> = emptyList(),
     val responses: List<Response> = emptyList(),
-    val streakMilestones: List<StreakMilestone> = SeedData.streakMilestones,
-    val universalAppSettings: List<UniversalAppSetting> = SeedData.universalAppSettings,
+    val streakMilestones: List<StreakMilestone> = emptyList(),
+    val universalAppSettings: List<UniversalAppSetting> = emptyList(),
+    /** The server's totals across all clients, for the dashboard. */
+    val usageReport: UsageReport? = null,
 
     val currentClientId: Int? = null,
     val isAdminMode: Boolean = false,
@@ -118,7 +120,7 @@ data class RehabUiState(
     // has been saved there, so they start in the local range (see LocalIds).
     val nextClientId: Int = 1,
     val nextClientTaskId: Int = LocalIds.FIRST + 1000,
-    val nextTaskId: Int = LocalIds.FIRST + SeedData.FIRST_TASK_ID_AFTER_LIBRARY,
+    val nextTaskId: Int = LocalIds.FIRST + 1,
     val nextDailyQuestionId: Int = LocalIds.FIRST + 1,
     val nextCheckinId: Int = LocalIds.FIRST + 1,
     val nextResponseId: Int = LocalIds.FIRST + 1
@@ -126,16 +128,19 @@ data class RehabUiState(
     val currentClient: Client? get() = clients.find { it.clientId == currentClientId }
     val isLoggedIn: Boolean get() = currentClientId != null
 
-    fun settingInt(key: String, default: Int): Int =
-        universalAppSettings.find { it.settingKey == key }?.settingValue?.toIntOrNull() ?: default
+    /** A Universal_App_Setting value, or null when the database has none under [key]. */
+    fun setting(key: String): String? = universalAppSettings.find { it.settingKey == key }?.settingValue
+
+    fun settingInt(key: String, default: Int): Int = setting(key)?.toIntOrNull() ?: default
 }
 
-/** Read-only, admin-facing rollup of one client's progress (derived from Client/ClientStreak/client_task). */
+/** Admin-facing rollup of one client's progress and today's checklist (derived from Client/ClientStreak/client_task). */
 data class ClientProgressSummary(
     val client: Client,
     val completionRateToday: Float,
     val currentStreak: Int,
-    val bestStreak: Int
+    val bestStreak: Int,
+    val todaysChecklist: List<ChecklistItem>
 )
 
 /**
@@ -180,8 +185,8 @@ class AppViewModel : ViewModel() {
      */
     private var adminCaller: Caller? = null
 
-    /** The clients the server says the signed-in admin looks after, or null for the demo admin, who sees every client the app holds. */
-    private var adminClientIds: Set<Int>? = null
+    /** The clients the server sends the signed-in admin: every client, as any admin can see them all. */
+    private var adminClientIds: Set<Int> = emptySet()
 
     /** The server's id for each row this run of the app first saved under a local id. */
     private val serverIds = mutableMapOf<Pair<Table, Int>, Int>()
@@ -210,8 +215,8 @@ class AppViewModel : ViewModel() {
      * again ahead of the next one. A change the server refuses is dropped, and the app's copy
      * simply stays as it is.
      *
-     * The server only answers a client with a session token or an admin it has accepted, so a
-     * change made by a demo account (client or admin) stays on this device.
+     * The server only answers a client with a session token or an admin it has accepted, so
+     * nothing is sent until someone has signed in.
      */
     private fun mirror(write: suspend (Caller) -> Boolean) {
         val caller = currentCaller()
@@ -248,7 +253,6 @@ class AppViewModel : ViewModel() {
                 Table.TASK -> state.copy(
                     tasks = state.tasks.map { if (it.taskId == localId) it.copy(taskId = serverId) else it },
                     taskCategories = state.taskCategories.map { if (it.taskId == localId) it.copy(taskId = serverId) else it },
-                    taskRules = state.taskRules.map { if (it.taskId == localId) it.copy(taskId = serverId) else it },
                     clientTasks = state.clientTasks.map { if (it.taskId == localId) it.copy(taskId = serverId) else it }
                 )
                 Table.CLIENT_TASK -> state.copy(
@@ -269,21 +273,20 @@ class AppViewModel : ViewModel() {
         }
     }
 
-    /** Server Task rows laid over the app's. timeLabel and isVigorous have no database column, so they carry over from the app's own row. */
-    private fun RehabUiState.withServerTasks(tasks: List<Task>?): List<Task> {
-        val heldTasks = this.tasks.associateBy { it.taskId }
-        val serverTasks = tasks?.map { task ->
-            heldTasks[task.taskId]?.let { task.copy(timeLabel = it.timeLabel, isVigorous = it.isVigorous) } ?: task
-        }
-        return this.tasks.mergedWith(serverTasks) { it.taskId }
+    /** Server Task rows, and the Task_Category row (colour) of each, laid over the app's. */
+    private fun RehabUiState.withServerTasks(rows: TaskRows?): RehabUiState {
+        if (rows == null) return this
+        return copy(
+            tasks = tasks.mergedWith(rows.tasks) { it.taskId },
+            taskCategories = taskCategories.mergedWith(rows.taskCategories) { it.taskId }
+        )
     }
 
     /**
-     * Category, Article, Task and Streak_Milestone: the tables every client shares, loaded once a
-     * client has signed in (the server serves them only with a session token). Until then, and
-     * for rows the server doesn't return, the built-in ones are used: the checklist and guidance
-     * rules refer to the built-in task ids. The server has no calls for Task_Category, Task_Rule,
-     * Question_Template or Universal_App_Setting, so those are always the built-in ones.
+     * Category, Article, Task with its Task_Category, Streak_Milestone and Universal_App_Setting:
+     * the tables every client shares, loaded once a client has signed in (the server serves them
+     * only with a session token). The checklist and guidance rules refer to tasks by the ids in
+     * [TaskIds], which the server's database gives them.
      */
     private fun loadSharedTables(token: String) {
         viewModelScope.launch {
@@ -291,12 +294,13 @@ class AppViewModel : ViewModel() {
             val articles = onServer { fetchArticles(token) }
             val tasks = onServer { fetchTaskLibrary(token) }
             val milestones = onServer { fetchStreakMilestones(token) }
+            val settings = onServer { fetchAppSettings(token) }
 
             _uiState.update { state ->
-                state.copy(
+                state.withServerTasks(tasks).copy(
                     categories = state.categories.mergedWith(categories) { it.categoryId },
                     articles = state.articles.mergedWith(articles) { it.articleId },
-                    tasks = state.withServerTasks(tasks),
+                    universalAppSettings = state.universalAppSettings.mergedWith(settings) { it.settingKey },
                     streakMilestones = if (milestones.isNotEmpty()) {
                         milestones.map { dto -> StreakMilestone(dto.milestoneId, dto.days, dto.message) }
                     } else {
@@ -326,7 +330,7 @@ class AppViewModel : ViewModel() {
         _uiState.update { state ->
             val held = state.clients.find { it.clientId == clientId }
             val client = when {
-                profile != null -> profile.copy(passwordHash = held?.passwordHash.orEmpty())
+                profile != null -> profile
                 held != null -> held
                 // Until the server can return the profile, the email they signed in with is all the app knows.
                 else -> Client(
@@ -344,14 +348,13 @@ class AppViewModel : ViewModel() {
             val todaysCheckin = DailyCheckin(state.nextCheckinId, clientId, today()).takeIf {
                 checkedInToday == true && heldCheckins.none { it.clientId == clientId && it.checkinDate == today() }
             }
-            state.copy(
+            state.withServerTasks(assigned?.tasks).copy(
                 clients = if (held == null) state.clients + client else state.clients.mergedWith(listOf(client)) { it.clientId },
                 clientStreaks = if (state.clientStreaks.any { it.clientId == clientId }) {
                     state.clientStreaks.mergedWith(listOf(clientStreak)) { it.clientId }
                 } else {
                     state.clientStreaks + clientStreak
                 },
-                tasks = state.withServerTasks(assigned?.tasks),
                 clientTasks = state.clientTasks.mergedWith(clientTasks) { it.clientTaskId },
                 dailyCheckins = heldCheckins + listOfNotNull(todaysCheckin),
                 responses = state.responses.mergedWith(responses) { it.responseId },
@@ -383,39 +386,21 @@ class AppViewModel : ViewModel() {
             .filter { it.checkinId == latestCheckinId }
             .associate { orderByQuestionId.getValue(it.questionId) to it.answer }
 
-        val newClientTasks = newChecklistRows(clientId, ChecklistGenerator.generateTaskIds(setupAnswersFrom(raw)))
+        val newClientTasks = newChecklistRows(clientId, generateChecklist(setupAnswersFrom(raw)))
         _uiState.update {
             it.copy(clientTasks = it.clientTasks + newClientTasks, nextClientTaskId = it.nextClientTaskId + newClientTasks.size)
         }
     }
 
-    /** Gives a client their own copy of each question template they don't yet have a Daily_Question row for. */
-    private fun addDailyQuestionsFor(clientId: Int) {
-        val state = _uiState.value
-        val heldOrders = state.dailyQuestions.filter { it.clientId == clientId }.mapTo(HashSet()) { it.questionOrder }
-        val missing = state.questionTemplates.filter { it.questionOrder !in heldOrders }
-        if (missing.isEmpty()) return
-        val newQuestions = missing.mapIndexed { index, template ->
-            DailyQuestion(
-                questionId = state.nextDailyQuestionId + index,
-                categoryId = template.categoryId,
-                clientId = clientId,
-                questionOrder = template.questionOrder,
-                questionText = template.questionText
-            )
-        }
-        _uiState.update {
-            it.copy(
-                dailyQuestions = it.dailyQuestions + newQuestions,
-                nextDailyQuestionId = it.nextDailyQuestionId + newQuestions.size
-            )
-        }
-    }
+    /** The task ids of a new checklist, no longer than the database's checklist_task_cap setting allows. */
+    private fun generateChecklist(answers: SetupAnswers): List<Int> =
+        ChecklistGenerator.generateTaskIds(answers, cap = _uiState.value.settingInt("checklist_task_cap", 12))
 
     /**
-     * Daily_Question: takes on the server's copy of each of the client's questions where it has
-     * one (the server first copies its Question_Template rows for a client who has none), then
-     * sends it the ones it is missing. Returns false if the server couldn't be reached.
+     * Daily_Question: takes on the server's copy of each of the client's questions (the server
+     * first copies its Question_Template rows for a client who has none, which is where the setup
+     * and check-in questions come from), then sends it any the client added on this device that
+     * it is missing. Returns false if the server couldn't be reached.
      */
     private suspend fun syncDailyQuestions(caller: Caller, clientId: Int): Boolean {
         val token = caller.sessionToken ?: return true
@@ -427,7 +412,6 @@ class AppViewModel : ViewModel() {
             if (sameQuestion != null) adoptServerId(Table.DAILY_QUESTION, sameQuestion.questionId, question.questionId)
         }
         _uiState.update { it.copy(dailyQuestions = it.dailyQuestions.mergedWith(onServerAlready) { q -> q.questionId }) }
-        addDailyQuestionsFor(clientId)
 
         val unsaved = _uiState.value.dailyQuestions.filter { it.clientId == clientId && LocalIds.isLocal(it.questionId) }
         for (question in unsaved) {
@@ -511,17 +495,20 @@ class AppViewModel : ViewModel() {
         val id = currentId(Table.TASK, taskId)
         if (!LocalIds.isLocal(id)) return@mirror true
         val task = _uiState.value.tasks.find { it.taskId == id } ?: return@mirror true
-        val saved = onServer { createTask(caller, task) }
+        val saved = onServer { createTask(caller, task, categoryIdOf(id)) }
         saved.id?.let { adoptServerId(Table.TASK, id, it) }
         saved.serverReached
     }
 
-    /** Task: an admin renaming a library task, or taking it out of use. */
+    /** Task: an admin renaming or recolouring a library task, or taking it out of use. */
     private fun mirrorTaskChanges(taskId: Int) = mirror { caller ->
         val id = serverId(Table.TASK, taskId) ?: return@mirror true
         val task = _uiState.value.tasks.find { it.taskId == id } ?: return@mirror true
-        onServer { saveTaskChanges(caller, task) }.serverReached
+        onServer { saveTaskChanges(caller, task, categoryIdOf(id)) }.serverReached
     }
+
+    /** The colour category a task is filed under (its Task_Category row). */
+    private fun categoryIdOf(taskId: Int): Int? = _uiState.value.taskCategories.find { it.taskId == taskId }?.categoryId
 
     // ---------------------------------------------------------------------
     // Auth (Client / Admin)
@@ -544,28 +531,29 @@ class AppViewModel : ViewModel() {
         _uiState.update { it.copy(authInProgress = true) }
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
-                signUpClient(SeedData.DEFAULT_ADMIN_ID, firstName, lastName, trimmedEmail, trimmedPhone, password)
+                signUpClient(firstName, lastName, trimmedEmail, trimmedPhone, password)
             }
 
             if (result.success && result.clientId != null) {
                 val newClientId = result.clientId
-                val newClient = Client(
-                    clientId = newClientId,
-                    adminId = SeedData.DEFAULT_ADMIN_ID,
-                    firstName = firstName,
-                    lastName = lastName,
-                    email = trimmedEmail,
-                    phone = trimmedPhone,
-                    passwordHash = password
-                )
                 // Creating a client doesn't start a session, so sign in straight away to get one.
                 sessionToken = onServer { loginClient(trimmedEmail, password) }.sessionToken
+                if (sessionToken == null) {
+                    _uiState.update {
+                        it.copy(authError = "Your account is ready, but we couldn't sign you in just now. Please sign in.", authInProgress = false)
+                    }
+                    onResult(false)
+                    return@launch
+                }
+                _uiState.update {
+                    it.copy(clients = it.clients + Client(newClientId, null, firstName, lastName, trimmedEmail, trimmedPhone, passwordHash = ""))
+                }
+                // Also brings in the setup and check-in questions the server has just copied for them.
+                loadClientFromServer(newClientId, trimmedEmail)
                 sessionToken?.let(::loadSharedTables)
 
                 _uiState.update {
                     it.copy(
-                        clients = it.clients + newClient,
-                        clientStreaks = it.clientStreaks + ClientStreak(clientId = newClientId),
                         currentClientId = newClientId,
                         authError = null,
                         authInProgress = false,
@@ -573,8 +561,6 @@ class AppViewModel : ViewModel() {
                         latestCheckIn = null
                     )
                 }
-                addDailyQuestionsFor(newClientId)
-                mirror { caller -> syncDailyQuestions(caller, newClientId) }
                 onResult(true)
             } else {
                 _uiState.update { it.copy(authError = result.errorMessage ?: "Sign up failed.", authInProgress = false) }
@@ -597,13 +583,7 @@ class AppViewModel : ViewModel() {
             val signIn = onServer { loginClient(trimmedEmail, password) }
             val token = signIn.sessionToken
             // The login answer carries only the token; validating it says which client it is for.
-            val serverClientId = signIn.clientId ?: token?.let { onServer { validateSession(it) } }
-
-            // If the server doesn't sign them in, fall back to the accounts this app already
-            // holds: the demo clients, and anyone who signed up since it was opened.
-            val clientId = serverClientId ?: _uiState.value.clients.find {
-                it.email.equals(trimmedEmail, ignoreCase = true) && it.passwordHash.isNotEmpty() && it.passwordHash == password
-            }?.clientId
+            val clientId = signIn.clientId ?: token?.let { onServer { validateSession(it) } }
 
             if (clientId == null) {
                 val message = if (signIn.serverReached) {
@@ -616,8 +596,8 @@ class AppViewModel : ViewModel() {
                 return@launch
             }
 
-            sessionToken = token.takeIf { serverClientId != null }
-            if (serverClientId != null) loadClientFromServer(serverClientId, trimmedEmail)
+            sessionToken = token
+            loadClientFromServer(clientId, trimmedEmail)
             sessionToken?.let(::loadSharedTables)
 
             val todaysCheckIn = todaysCheckInFromResponses(clientId)
@@ -650,9 +630,7 @@ class AppViewModel : ViewModel() {
 
     /**
      * Opens the admin dashboard. The server checks an admin's email and password on every admin
-     * call, so asking it for their clients is also how they are signed in. If it doesn't accept
-     * them, the admin accounts this app holds itself (the demo one) are tried, and the dashboard
-     * then works from the data the app holds and calls nothing.
+     * call, so asking it for their clients is also how they are signed in.
      */
     fun adminLogin(email: String, password: String, onResult: (Boolean) -> Unit) {
         val trimmedEmail = email.trim()
@@ -667,11 +645,8 @@ class AppViewModel : ViewModel() {
         viewModelScope.launch {
             val caller = Caller(adminEmail = trimmedEmail, adminPassword = password)
             val signIn = onServer { fetchAdminClients(caller) }
-            val heldAdmin = _uiState.value.admins.find {
-                it.email.equals(trimmedEmail, ignoreCase = true) && it.passwordHash == password
-            }
 
-            if (!signIn.accepted && heldAdmin == null) {
+            if (!signIn.accepted) {
                 val message = if (signIn.serverReached) {
                     "That email and password don't match an admin account."
                 } else {
@@ -682,9 +657,9 @@ class AppViewModel : ViewModel() {
                 return@launch
             }
 
-            adminCaller = caller.takeIf { signIn.accepted }
-            adminClientIds = signIn.clients.mapTo(HashSet()) { it.clientId }.takeIf { signIn.accepted }
-            if (signIn.accepted) loadAdminFromServer(caller, signIn.clients)
+            adminCaller = caller
+            adminClientIds = signIn.clients.mapTo(HashSet()) { it.clientId }
+            loadAdminFromServer(caller, signIn.clients)
             _uiState.update {
                 it.copy(isAdminMode = true, currentClientId = null, authError = null, authInProgress = false)
             }
@@ -693,28 +668,32 @@ class AppViewModel : ViewModel() {
     }
 
     /**
-     * Client, Client_Task, Client_Streak and Task as the admin who has just signed in sees them:
-     * their own clients, each one's checklist rows and streak, and the whole task library.
+     * Client, Client_Task, Client_Streak, Task and Category as the admin who has just signed in
+     * sees them: every client, each one's checklist rows and streak, the whole task library
+     * with each task's colour, and the server's usage totals across all clients.
      */
     private suspend fun loadAdminFromServer(caller: Caller, clients: List<Client>) = serverQueue.withLock {
         val clientTasks = clients.flatMap { client -> onServer { fetchAdminClientTasks(caller, client.clientId) }.orEmpty() }
         val streaks = clients.mapNotNull { client -> onServer { fetchAdminClientStreak(caller, client.clientId) } }
         val tasks = onServer { fetchAdminTasks(caller) }
+        val categories = onServer { fetchAdminCategories(caller) }
+        val usageReport = onServer { fetchAdminUsageReport(caller) }
 
         _uiState.update { state ->
-            state.copy(
+            state.withServerTasks(tasks).copy(
                 clients = state.clients.mergedWith(clients) { it.clientId },
                 clientTasks = state.clientTasks.mergedWith(clientTasks) { it.clientTaskId },
                 clientStreaks = state.clientStreaks.mergedWith(streaks) { it.clientId },
-                tasks = state.withServerTasks(tasks)
+                categories = state.categories.mergedWith(categories) { it.categoryId },
+                usageReport = usageReport
             )
         }
     }
 
     fun adminLogout() {
         adminCaller = null
-        adminClientIds = null
-        _uiState.update { it.copy(isAdminMode = false) }
+        adminClientIds = emptySet()
+        _uiState.update { it.copy(isAdminMode = false, usageReport = null) }
     }
 
     // ---------------------------------------------------------------------
@@ -740,7 +719,7 @@ class AppViewModel : ViewModel() {
             responseId++
         }
 
-        val newClientTasks = newChecklistRows(clientId, ChecklistGenerator.generateTaskIds(answers))
+        val newClientTasks = newChecklistRows(clientId, generateChecklist(answers))
 
         _uiState.update {
             it.copy(
@@ -836,7 +815,7 @@ class AppViewModel : ViewModel() {
         val priorRows = state.clientTasks.filter { it.clientId == clientId && it.status != ClientTaskStatus.REMOVED }
         val mostRecentDate = priorRows.mapNotNull { it.dueDate }.maxOrNull() ?: return
         val carryTaskIds = priorRows
-            .filter { it.dueDate == mostRecentDate && it.taskId != SeedData.SELF_COMPASSION_TASK_ID }
+            .filter { it.dueDate == mostRecentDate && it.taskId != TaskIds.SELF_COMPASSION_TASK_ID }
             .map { it.taskId }
             .distinct()
         if (carryTaskIds.isEmpty()) return
@@ -867,13 +846,13 @@ class AppViewModel : ViewModel() {
         val gap = ChronoUnit.DAYS.between(last, today())
 
         val alreadyHasSelfCompassionToday = state.clientTasks.any {
-            it.clientId == clientId && it.taskId == SeedData.SELF_COMPASSION_TASK_ID && it.dueDate == today()
+            it.clientId == clientId && it.taskId == TaskIds.SELF_COMPASSION_TASK_ID && it.dueDate == today()
         }
         if (gap >= thresholdDays && !alreadyHasSelfCompassionToday) {
             val newRow = ClientTask(
                 clientTaskId = _uiState.value.nextClientTaskId,
                 clientId = clientId,
-                taskId = SeedData.SELF_COMPASSION_TASK_ID,
+                taskId = TaskIds.SELF_COMPASSION_TASK_ID,
                 assignedAt = LocalDateTime.now(),
                 dueDate = today(),
                 status = ClientTaskStatus.PENDING
@@ -995,9 +974,14 @@ class AppViewModel : ViewModel() {
         return todaysChecklistItems().map { it.taskId }.filter { categoryIdByTaskId[it] in cats }
     }
 
-    /** The client's checklist for today: client_task rows joined to Task + Task_Category + Category. */
+    /** The signed-in client's checklist for today. */
     fun todaysChecklistItems(): List<ChecklistItem> {
         val clientId = _uiState.value.currentClientId ?: return emptyList()
+        return checklistFor(clientId)
+    }
+
+    /** [clientId]'s checklist for today: client_task rows joined to Task + Task_Category + Category. */
+    private fun checklistFor(clientId: Int): List<ChecklistItem> {
         val state = _uiState.value
         val today = today()
         val tasksById = state.tasks.associateBy { it.taskId }
@@ -1102,9 +1086,23 @@ class AppViewModel : ViewModel() {
         _uiState.value.streakMilestones.find { it.days == days }?.message
             ?: "$days day streak! Celebrate consistency, not perfection."
 
+    /** What the welcome-back dialog says after a missed day: the database's streak_broken_message setting. */
+    fun welcomeBackMessage(): String? = _uiState.value.setting("streak_broken_message")
+
     // ---------------------------------------------------------------------
     // The client's own Daily Check-In questions (Daily_Question)
     // ---------------------------------------------------------------------
+
+    /**
+     * The wording of the signed-in client's questions, by question_order: their copies of the
+     * database's setup questions (1-15) and Daily Check-In questions (101-106).
+     */
+    fun questionTexts(): Map<Int, String> {
+        val clientId = _uiState.value.currentClientId ?: return emptyMap()
+        return _uiState.value.dailyQuestions
+            .filter { it.clientId == clientId }
+            .associate { it.questionOrder to it.questionText }
+    }
 
     /** Questions the client added to their Daily Check-In themselves, in the order they are asked. */
     fun ownCheckInQuestions(): List<DailyQuestion> {
@@ -1159,17 +1157,13 @@ class AppViewModel : ViewModel() {
             return
         }
         val token = sessionToken
+        if (token == null) {
+            onResult("Please sign in again, then change your password.")
+            return
+        }
         viewModelScope.launch {
-            val problem = when {
-                token != null -> onServer { changeClientPassword(client.email, token, currentPassword, newPassword) }
-                    .let { result -> if (result.success) null else result.errorMessage ?: "We couldn't change your password just now." }
-                // With no session, only an account the app holds itself (a demo one) can be changed.
-                !LocalIds.isLocal(client.clientId) -> "Please sign in again, then change your password."
-                client.passwordHash != currentPassword -> "That current password doesn't match. Please try again."
-                else -> null
-            }
-            if (problem == null) updateHeldPassword(newPassword) { it.clientId == client.clientId }
-            onResult(problem)
+            val result = onServer { changeClientPassword(client.email, token, currentPassword, newPassword) }
+            onResult(if (result.success) null else result.errorMessage ?: "We couldn't change your password just now.")
         }
     }
 
@@ -1200,17 +1194,7 @@ class AppViewModel : ViewModel() {
         }
         viewModelScope.launch {
             val result = onServer { resetClientPassword(trimmedEmail, digits, newPassword) }
-            if (result.success) updateHeldPassword(newPassword) { it.email.equals(trimmedEmail, ignoreCase = true) }
             onResult(if (result.success) null else result.errorMessage ?: "We couldn't reset your password just now.")
-        }
-    }
-
-    /** The app's own copy of a client's password, used to sign in while the server can't be reached, follows a change. */
-    private fun updateHeldPassword(newPassword: String, isClient: (Client) -> Boolean) {
-        _uiState.update { state ->
-            state.copy(clients = state.clients.map {
-                if (isClient(it) && it.passwordHash.isNotEmpty()) it.copy(passwordHash = newPassword) else it
-            })
         }
     }
 
@@ -1245,7 +1229,11 @@ class AppViewModel : ViewModel() {
         }
     }
 
-    /** Removes a task from today's checklist (and therefore from tomorrow's carry-forward). */
+    /**
+     * Removes a task from today's checklist (and therefore from tomorrow's carry-forward), for the
+     * client themselves or for an admin. The server has no call to remove a Client_Task row, so
+     * the removal stays on this device.
+     */
     fun removeTask(clientTaskId: Int) {
         val rowId = currentId(Table.CLIENT_TASK, clientTaskId)
         _uiState.update { state ->
@@ -1335,6 +1323,46 @@ class AppViewModel : ViewModel() {
         mirrorAssignedTask(newClientTask.clientTaskId)
     }
 
+    /**
+     * An admin renaming or recolouring a task on one client's checklist, for that client alone.
+     * A task the server holds or another client has is shared, so the client gets their own copy
+     * of it in the same place on their checklist, which is saved to the server as a new task and
+     * assigned to them. A task made on this device for this client only is changed as it is.
+     */
+    fun updateClientTask(clientTaskId: Int, newTitle: String, newCategoryId: Int) {
+        if (newTitle.isBlank()) return
+        val state = _uiState.value
+        val rowId = currentId(Table.CLIENT_TASK, clientTaskId)
+        val row = state.clientTasks.find { it.clientTaskId == rowId } ?: return
+        val task = state.tasks.find { it.taskId == row.taskId } ?: return
+        val shared = !LocalIds.isLocal(task.taskId) ||
+            state.clientTasks.any { it.taskId == task.taskId && it.clientId != row.clientId }
+        if (!shared) {
+            applyTaskEdit(task.taskId, newTitle, newCategoryId)
+            return
+        }
+
+        val copyId = state.nextTaskId
+        val copyRow = row.copy(clientTaskId = state.nextClientTaskId, taskId = copyId, assignedAt = LocalDateTime.now())
+        _uiState.update {
+            it.copy(
+                tasks = it.tasks + task.copy(taskId = copyId, title = newTitle.trim(), isActive = true),
+                taskCategories = it.taskCategories + TaskCategory(categoryId = newCategoryId, taskId = copyId, difficulty = 1),
+                clientTasks = it.clientTasks.flatMap { clientTask ->
+                    if (clientTask.clientTaskId == rowId) {
+                        listOf(clientTask.copy(status = ClientTaskStatus.REMOVED), copyRow)
+                    } else {
+                        listOf(clientTask)
+                    }
+                },
+                nextTaskId = copyId + 1,
+                nextClientTaskId = state.nextClientTaskId + 1
+            )
+        }
+        mirrorNewTask(copyId)
+        mirrorAssignedTask(copyRow.clientTaskId)
+    }
+
     // ---------------------------------------------------------------------
     // Insights (Client-facing Profile + Admin Dashboard)
     // ---------------------------------------------------------------------
@@ -1355,19 +1383,18 @@ class AppViewModel : ViewModel() {
         return items.count { it.completed } to items.size
     }
 
-    /** Admin Dashboard: read-only rollup for every client in the system (derived, not mocked). */
+    /** Admin Dashboard: a rollup for every client. */
     fun clientProgressSummaries(): List<ClientProgressSummary> {
         val state = _uiState.value
         val today = today()
-        val shownIds = adminClientIds
-        return state.clients.filter { shownIds == null || it.clientId in shownIds }.map { client ->
+        return state.clients.filter { it.clientId in adminClientIds }.map { client ->
             val todaysRows = state.clientTasks.filter {
                 it.clientId == client.clientId && it.dueDate == today && it.status != ClientTaskStatus.REMOVED
             }
             val completed = todaysRows.count { it.status == ClientTaskStatus.COMPLETED }
             val rate = if (todaysRows.isEmpty()) 0f else completed.toFloat() / todaysRows.size
             val streak = state.clientStreaks.find { it.clientId == client.clientId }
-            ClientProgressSummary(client, rate, streak?.currentStreak ?: 0, streak?.bestStreak ?: 0)
+            ClientProgressSummary(client, rate, streak?.currentStreak ?: 0, streak?.bestStreak ?: 0, checklistFor(client.clientId))
         }
     }
 
@@ -1378,7 +1405,7 @@ class AppViewModel : ViewModel() {
         return state.categories.associateWith { category ->
             state.tasks.filter { task ->
                 task.isActive &&
-                    task.taskId != SeedData.SELF_COMPASSION_TASK_ID &&
+                    task.taskId != TaskIds.SELF_COMPASSION_TASK_ID &&
                     categoryIdByTaskId[task.taskId] == category.categoryId
             }
         }

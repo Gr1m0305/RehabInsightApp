@@ -30,7 +30,6 @@ import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.TaskAlt
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -48,7 +47,6 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
@@ -69,7 +67,6 @@ import com.example.rehabinsight.ui.components.SectionHeading
 import com.example.rehabinsight.ui.components.SoftCard
 import com.example.rehabinsight.ui.components.SoftChip
 import com.example.rehabinsight.ui.components.softShadow
-import com.example.rehabinsight.ui.theme.RehabDivider
 import com.example.rehabinsight.ui.theme.RehabPrimary
 import com.example.rehabinsight.ui.theme.RehabPrimarySoft
 import com.example.rehabinsight.ui.theme.RehabSurface
@@ -176,11 +173,10 @@ private fun ArticleList(articles: List<Article>, listState: LazyListState, onOpe
     }
 }
 
-/** Photo-led card: the picture carries the topic, with only a title, a tagline and the read time on top. */
+/** Photo-led card: the picture carries the topic, with only a title and the read time on top. */
 @Composable
 private fun ArticleCard(article: Article, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val shape = MaterialTheme.shapes.large
-    val visuals = article.visuals
     Surface(
         onClick = onClick,
         modifier = modifier
@@ -194,7 +190,7 @@ private fun ArticleCard(article: Article, modifier: Modifier = Modifier, onClick
                 .fillMaxWidth()
                 .height(180.dp)
         ) {
-            ArticleBanner(article, visuals, Modifier.matchParentSize())
+            ArticleBanner(article, Modifier.matchParentSize())
             // Scrim so the title stays legible over any photo, with a faint tint up top for very bright skies.
             Box(
                 modifier = Modifier
@@ -216,28 +212,18 @@ private fun ArticleCard(article: Article, modifier: Modifier = Modifier, onClick
                     .padding(horizontal = 18.dp, vertical = 16.dp)
             ) {
                 Text(article.title, style = MaterialTheme.typography.titleLarge, color = Color.White)
-                if (visuals != null) {
-                    Text(visuals.tagline, style = MaterialTheme.typography.bodyMedium, color = Color.White)
-                }
             }
         }
     }
 }
 
-/** The photo the server sent for the article if there is one, else the built-in one. */
+/** The banner photo the server sent for the article, or a soft gradient while it has none. */
 @Composable
-private fun ArticleBanner(article: Article, visuals: ArticleVisuals?, modifier: Modifier = Modifier) {
+private fun ArticleBanner(article: Article, modifier: Modifier = Modifier) {
     val serverBanner = rememberServerBanner(article)
     if (serverBanner != null) {
         Image(
             bitmap = serverBanner,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = modifier
-        )
-    } else if (visuals != null) {
-        Image(
-            painter = painterResource(visuals.banner),
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = modifier
@@ -255,17 +241,16 @@ private fun ArticleBanner(article: Article, visuals: ArticleVisuals?, modifier: 
 }
 
 /**
- * Article view, lightest content first: photo, a handful of takeaways and the linked tasks.
- * The full evidence-based text sits behind a "read more" so nobody is met with a wall of words.
+ * Article view, lightest content first: photo, title and the linked tasks. The full
+ * evidence-based text sits behind a "read more" so nobody is met with a wall of words.
  */
 @Composable
 private fun ArticleDetail(article: Article, onBack: () -> Unit) {
-    val visuals = article.visuals
     val relatedTasks = remember(article) { article.relatedTasks }
     val paragraphs = remember(article) { article.readingParagraphs.map(::withQuietCitations) }
     val readTime = remember(article) { article.readTimeLabel }
-    // Articles with no condensed version simply open on their full text.
-    var showFullText by rememberSaveable(article.articleId) { mutableStateOf(visuals == null) }
+    // An article with no linked tasks to lead with simply opens on its full text.
+    var showFullText by rememberSaveable(article.articleId) { mutableStateOf(relatedTasks.isEmpty()) }
 
     CalmPage(horizontalPadding = 0.dp) {
         Box(
@@ -275,7 +260,6 @@ private fun ArticleDetail(article: Article, onBack: () -> Unit) {
         ) {
             ArticleBanner(
                 article,
-                visuals,
                 Modifier
                     .matchParentSize()
                     .clip(HeroWaveShape)
@@ -295,31 +279,8 @@ private fun ArticleDetail(article: Article, onBack: () -> Unit) {
                 style = MaterialTheme.typography.headlineMedium,
                 modifier = Modifier.semantics { heading() }
             )
-            if (visuals != null) {
-                Spacer(Modifier.height(2.dp))
-                Text(visuals.tagline, style = MaterialTheme.typography.bodyLarge, color = RehabTextSecondary)
-            }
             Spacer(Modifier.height(14.dp))
             SoftChip(text = readTime, icon = Icons.Rounded.Schedule)
-
-            if (visuals != null) {
-                Spacer(Modifier.height(28.dp))
-                SectionHeading("In short")
-                Spacer(Modifier.height(12.dp))
-                SoftCard(contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp)) {
-                    visuals.keyPoints.forEachIndexed { index, point ->
-                        if (index > 0) HorizontalDivider(color = RehabDivider)
-                        Row(
-                            modifier = Modifier.padding(vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconBubble(point.icon, size = 38.dp)
-                            Spacer(Modifier.width(14.dp))
-                            Text(point.text, style = MaterialTheme.typography.bodyLarge)
-                        }
-                    }
-                }
-            }
 
             if (relatedTasks.isNotEmpty()) {
                 Spacer(Modifier.height(28.dp))
@@ -345,7 +306,7 @@ private fun ArticleDetail(article: Article, onBack: () -> Unit) {
                 }
             }
 
-            if (visuals != null) {
+            if (relatedTasks.isNotEmpty()) {
                 Spacer(Modifier.height(28.dp))
                 FullArticleToggle(expanded = showFullText, onToggle = { showFullText = !showFullText })
             }

@@ -5,7 +5,6 @@ import com.example.rehabinsight.data.ClientTask
 import com.example.rehabinsight.data.ClientTaskStatus
 import com.example.rehabinsight.data.DailyCheckin
 import com.example.rehabinsight.data.Response
-import com.example.rehabinsight.data.Task
 import org.json.JSONObject
 import java.time.LocalDate
 
@@ -59,13 +58,13 @@ private fun clientTaskFrom(row: JSONObject): ClientTask? {
 }
 
 /** A client's Client_Task rows, with the Task row each is for (which may since have left the active library). */
-data class AssignedTasks(val clientTasks: List<ClientTask>, val tasks: List<Task>)
+data class AssignedTasks(val clientTasks: List<ClientTask>, val tasks: TaskRows)
 
 fun fetchClientTasks(sessionToken: String): AssignedTasks? {
     val rows = rowsFrom(postForResponse(CLIENT_TASKS_URL, sessionBody(sessionToken))) { it } ?: return null
     return AssignedTasks(
         clientTasks = rows.mapNotNull(::clientTaskFrom),
-        tasks = rows.mapNotNull { row -> row.optJSONObject("task")?.let(::taskFrom) }
+        tasks = taskRowsFrom(rows.mapNotNull { row -> row.optJSONObject("task") })
     )
 }
 
@@ -102,15 +101,15 @@ fun fetchAnswerHistory(sessionToken: String): List<Response>? =
         )
     }
 
-// ----- An admin's clients -----
+// ----- Any client, for an admin -----
 
-/** Client_Task rows for one of the admin's clients. */
+/** Client_Task rows for one client. */
 fun fetchAdminClientTasks(caller: Caller, clientId: Int): List<ClientTask>? {
     val json = JSONObject().putCaller(caller).apply { put("client_id", clientId) }
     return rowsFrom(postForResponse(ADMIN_CLIENT_TASKS_URL, json), ::clientTaskFrom)
 }
 
-/** One of the admin's clients' streak, read from the server's report on them. */
+/** One client's streak, read from the server's report on them. */
 fun fetchAdminClientStreak(caller: Caller, clientId: Int): ClientStreak? {
     val json = JSONObject().putCaller(caller).apply { put("client_id", clientId) }
     val response = postForResponse(ADMIN_CLIENT_REPORT_URL, json)
@@ -118,7 +117,29 @@ fun fetchAdminClientStreak(caller: Caller, clientId: Int): ClientStreak? {
     return jsonObjectOrNull(response.body)?.let { streakFrom(it, clientId) }
 }
 
-/** Puts a Task on one of the admin's clients' checklists, due on the row's due_date. Returns its client_task_id. */
+/** The server's totals across every client. */
+data class UsageReport(
+    val clients: Int,
+    val activeClientsLastWeek: Int,
+    val completedCheckins: Int,
+    val answersRecorded: Int,
+    val tasksCompleted: Int
+)
+
+fun fetchAdminUsageReport(caller: Caller): UsageReport? {
+    val response = postForResponse(ADMIN_USAGE_REPORT_URL, JSONObject().putCaller(caller))
+    if (response == null || !response.isSuccess) return null
+    val report = jsonObjectOrNull(response.body) ?: return null
+    return UsageReport(
+        clients = report.intOrNull("total_assigned_clients") ?: 0,
+        activeClientsLastWeek = report.intOrNull("clients_with_completed_checkins_last_7") ?: 0,
+        completedCheckins = report.intOrNull("completed_checkins") ?: 0,
+        answersRecorded = report.intOrNull("answers_recorded") ?: 0,
+        tasksCompleted = report.intOrNull("tasks_completed") ?: 0
+    )
+}
+
+/** Puts a Task on a client's checklist, due on the row's due_date. Returns its client_task_id. */
 fun assignClientTask(caller: Caller, clientTask: ClientTask): WriteResult {
     val json = JSONObject().putCaller(caller).apply {
         put("client_id", clientTask.clientId)

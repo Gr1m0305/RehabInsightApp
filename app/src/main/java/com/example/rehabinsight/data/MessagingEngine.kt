@@ -23,13 +23,6 @@ object MessagingEngine {
         }
     }
 
-    /** Part 6 - exact broken-streak / welcome-back copy. */
-    fun welcomeBackMessage(): String =
-        "Welcome back. Your streak reset — and that is completely okay. Missing days is being " +
-            "human, not failing. Today is an opportunity to practice something just as important " +
-            "as any streak: self-compassion. Speak to yourself the way you would to a good friend " +
-            "having a hard time — then start small. We've added one gentle task to today to help " +
-            "you do exactly that."
-
+    // The welcome-back message itself is the database's streak_broken_message setting.
     const val WELCOME_BACK_BUTTON_TEXT = "Thank you — let's begin again."
 }

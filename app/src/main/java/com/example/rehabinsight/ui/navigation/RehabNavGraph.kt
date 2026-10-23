@@ -121,6 +121,7 @@ fun RehabNavGraph() {
 
             composable(Routes.SETUP_QUESTIONNAIRE) {
                 SetupQuestionnaireScreen(
+                    questionTexts = viewModel.questionTexts(),
                     onComplete = { answers ->
                         viewModel.submitSetupAnswers(answers)
                         navController.navigate(Routes.CHECKLIST_GENERATION) {
@@ -156,6 +157,7 @@ fun RehabNavGraph() {
                 LaunchedEffect(Unit) { viewModel.checkForMissedDay() }
                 DailyCheckInScreen(
                     userName = uiState.currentClient?.firstName.orEmpty(),
+                    questionTexts = viewModel.questionTexts(),
                     ownQuestions = viewModel.ownCheckInQuestions(),
                     onSubmit = { checkIn ->
                         viewModel.submitDailyCheckIn(checkIn)
@@ -234,11 +236,16 @@ fun RehabNavGraph() {
                 // Reading uiState here is also what redraws the dashboard after a library edit.
                 if (uiState.isAdminMode) AdminDashboardScreen(
                     progressSummaries = viewModel.clientProgressSummaries(),
+                    usageReport = uiState.usageReport,
                     tasksByCategory = viewModel.tasksByCategory(),
                     onAddTask = { title, categoryId -> viewModel.addLibraryTask(title, categoryId) },
                     onUpdateTask = { taskId, title, categoryId -> viewModel.updateLibraryTask(taskId, title, categoryId) },
                     onRemoveTask = { taskId -> viewModel.removeLibraryTask(taskId) },
                     onAssignTask = { clientId, taskId -> viewModel.assignTaskToClient(clientId, taskId) },
+                    onUpdateClientTask = { clientTaskId, title, categoryId ->
+                        viewModel.updateClientTask(clientTaskId, title, categoryId)
+                    },
+                    onRemoveClientTask = { clientTaskId -> viewModel.removeTask(clientTaskId) },
                     onLogout = {
                         viewModel.adminLogout()
                         navController.navigate(Routes.LOGIN) {
@@ -258,7 +265,9 @@ fun RehabNavGraph() {
                 titleContentColor = RehabTextPrimary,
                 textContentColor = RehabTextSecondary,
                 title = { Text("Welcome back", style = MaterialTheme.typography.titleLarge) },
-                text = { Text(MessagingEngine.welcomeBackMessage(), style = MaterialTheme.typography.bodyLarge) },
+                text = viewModel.welcomeBackMessage()?.let { message ->
+                    { Text(message, style = MaterialTheme.typography.bodyLarge) }
+                },
                 confirmButton = {
                     TextButton(onClick = { viewModel.dismissWelcomeBack() }) {
                         Text(

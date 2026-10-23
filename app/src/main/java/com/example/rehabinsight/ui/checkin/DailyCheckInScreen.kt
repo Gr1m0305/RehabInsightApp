@@ -126,14 +126,8 @@ private fun optionsFor(question: Int): List<LevelOption> = when (question) {
     )
 }
 
-private val questionTitles = listOf(
-    "How are you feeling today?",
-    "How's your energy?",
-    "How stressed do you feel?",
-    "How did you sleep?",
-    "How motivated do you feel?",
-    "Any pain or discomfort?"
-)
+/** question_order of the first daily question (mood); energy, stress, sleep, motivation and pain follow in turn. */
+private const val FIRST_QUESTION_ORDER = 101
 
 /** The pain question; it and every question after it (the client's own) can be skipped on its own. */
 private const val PAIN_STEP = 5
@@ -144,10 +138,14 @@ private fun greetingFor(time: LocalTime): String = when (time.hour) {
     else -> "Good evening"
 }
 
-/** [ownQuestions] are the client's own questions, asked after the built-in ones. */
+/**
+ * [questionTexts] is the wording of each question, by question_order, from the client's
+ * Daily_Question rows. [ownQuestions] are the client's own questions, asked after the others.
+ */
 @Composable
 fun DailyCheckInScreen(
     userName: String,
+    questionTexts: Map<Int, String>,
     ownQuestions: List<DailyQuestion>,
     onSubmit: (CheckInAnswers) -> Unit,
     onSkipAll: () -> Unit
@@ -165,7 +163,11 @@ fun DailyCheckInScreen(
     val lastStep = PAIN_STEP + questions.size
 
     fun titleFor(shownStep: Int): String =
-        if (shownStep <= PAIN_STEP) questionTitles[shownStep] else questions[shownStep - PAIN_STEP - 1].questionText
+        if (shownStep <= PAIN_STEP) {
+            questionTexts[FIRST_QUESTION_ORDER + shownStep].orEmpty()
+        } else {
+            questions[shownStep - PAIN_STEP - 1].questionText
+        }
 
     val today = LocalDate.now()
     val dateLabel = remember(today) {

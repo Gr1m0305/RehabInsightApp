@@ -80,8 +80,10 @@ private val stepIcons = listOf(
     Icons.Rounded.Flag // goals
 )
 
+/** [questionTexts] is the wording of each question, by question_order, from the client's Daily_Question rows. */
 @Composable
 fun SetupQuestionnaireScreen(
+    questionTexts: Map<Int, String>,
     onComplete: (SetupAnswers) -> Unit
 ) {
     var step by remember { mutableStateOf(0) }
@@ -165,63 +167,63 @@ fun SetupQuestionnaireScreen(
 
                         when (shownStep) {
                             0 -> SingleSelectQuestion(
-                                title = "How would you rate your sleep lately?",
+                                title = questionTexts[1].orEmpty(),
                                 options = SleepRating.entries,
                                 label = { it.label },
                                 selected = sleep
                             ) { sleep = it; goNext() }
 
                             1 -> SingleSelectQuestion(
-                                title = "How often do you feel stressed or overwhelmed?",
+                                title = questionTexts[2].orEmpty(),
                                 options = StressFrequency.entries,
                                 label = { it.label },
                                 selected = stress
                             ) { stress = it; goNext() }
 
                             2 -> SingleSelectQuestion(
-                                title = "How have you been feeling emotionally?",
+                                title = questionTexts[3].orEmpty(),
                                 options = MoodRating.entries,
                                 label = { it.label },
                                 selected = mood
                             ) { mood = it; goNext() }
 
                             3 -> SingleSelectQuestion(
-                                title = "How connected do you feel to others?",
+                                title = questionTexts[4].orEmpty(),
                                 options = LevelRating.entries,
                                 label = { it.label },
                                 selected = connection
                             ) { connection = it; goNext() }
 
                             4 -> SingleSelectQuestion(
-                                title = "How motivated have you been?",
+                                title = questionTexts[5].orEmpty(),
                                 options = LevelRating.entries,
                                 label = { it.label },
                                 selected = motivation
                             ) { motivation = it; goNext() }
 
                             5 -> SingleSelectQuestion(
-                                title = "How physically active are you?",
+                                title = questionTexts[6].orEmpty(),
                                 options = LevelRating.entries,
                                 label = { it.label },
                                 selected = activity
                             ) { activity = it; goNext() }
 
                             6 -> SingleSelectQuestion(
-                                title = "Do you have a consistent daily routine?",
+                                title = questionTexts[7].orEmpty(),
                                 options = RoutineRating.entries,
                                 label = { it.label },
                                 selected = routine
                             ) { routine = it; goNext() }
 
                             7 -> SingleSelectQuestion(
-                                title = "How is your energy through the day?",
+                                title = questionTexts[8].orEmpty(),
                                 options = LevelRating.entries,
                                 label = { it.label },
                                 selected = energy
                             ) { energy = it; goNext() }
 
                             8 -> SingleSelectQuestion(
-                                title = "Does pain or a physical condition limit what you can do?",
+                                title = questionTexts[9].orEmpty(),
                                 options = PainLevel.entries,
                                 label = { it.label },
                                 selected = pain

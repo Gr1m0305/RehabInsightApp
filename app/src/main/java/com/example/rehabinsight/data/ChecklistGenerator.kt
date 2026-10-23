@@ -18,27 +18,26 @@ package com.example.rehabinsight.data
  */
 object ChecklistGenerator {
 
-    private const val CHECKLIST_CAP = 12
-
     /** One optional task-set trigger, in Part-2 priority order. */
     private data class Candidate(val taskIds: List<Int>, val linkedGoal: Goal?)
 
     /**
      * Returns the distinct, ordered task_ids that make up a client's initial ongoing checklist,
-     * capped at [CHECKLIST_CAP] and prioritised so goal-linked sets (Q10) are kept first.
+     * capped at [cap] tasks (the checklist_task_cap setting) and prioritised so goal-linked sets
+     * (Q10) are kept first.
      */
-    fun generateTaskIds(answers: SetupAnswers): List<Int> {
+    fun generateTaskIds(answers: SetupAnswers, cap: Int): List<Int> {
         val result = LinkedHashSet<Int>()
-        result += SeedData.CORE_FIVE_TASK_IDS
+        result += TaskIds.CORE_FIVE_TASK_IDS
 
         val candidates = mutableListOf<Candidate>()
-        if (answers.sleep == SleepRating.POOR) candidates += Candidate(SeedData.SLEEP_SET_TASK_IDS, Goal.SLEEP)
-        if (answers.stress == StressFrequency.OFTEN) candidates += Candidate(SeedData.CALM_SET_TASK_IDS, Goal.STRESS)
-        if (answers.mood == MoodRating.LOW) candidates += Candidate(SeedData.MOOD_SET_TASK_IDS, Goal.MOOD)
-        if (answers.connection == LevelRating.LOW) candidates += Candidate(SeedData.CONNECTION_SET_TASK_IDS, Goal.CONNECTION)
-        if (answers.motivation == LevelRating.LOW) candidates += Candidate(SeedData.MOMENTUM_SET_TASK_IDS, Goal.ENERGY)
-        if (answers.activity == LevelRating.LOW) candidates += Candidate(SeedData.MOVEMENT_SET_TASK_IDS, Goal.PHYSICAL_HEALTH)
-        if (answers.routine == RoutineRating.NO) candidates += Candidate(SeedData.ROUTINE_SET_TASK_IDS, null)
+        if (answers.sleep == SleepRating.POOR) candidates += Candidate(TaskIds.SLEEP_SET_TASK_IDS, Goal.SLEEP)
+        if (answers.stress == StressFrequency.OFTEN) candidates += Candidate(TaskIds.CALM_SET_TASK_IDS, Goal.STRESS)
+        if (answers.mood == MoodRating.LOW) candidates += Candidate(TaskIds.MOOD_SET_TASK_IDS, Goal.MOOD)
+        if (answers.connection == LevelRating.LOW) candidates += Candidate(TaskIds.CONNECTION_SET_TASK_IDS, Goal.CONNECTION)
+        if (answers.motivation == LevelRating.LOW) candidates += Candidate(TaskIds.MOMENTUM_SET_TASK_IDS, Goal.ENERGY)
+        if (answers.activity == LevelRating.LOW) candidates += Candidate(TaskIds.MOVEMENT_SET_TASK_IDS, Goal.PHYSICAL_HEALTH)
+        if (answers.routine == RoutineRating.NO) candidates += Candidate(TaskIds.ROUTINE_SET_TASK_IDS, null)
 
         // A self-chosen goal also switches on its set, even if the matching answer wasn't itself
         // flagged (e.g. someone picks "Sleep" as a goal despite rating their sleep "Moderate").
@@ -47,12 +46,12 @@ object ChecklistGenerator {
                 candidates += Candidate(taskIds, goal)
             }
         }
-        addGoalSet(Goal.SLEEP, SeedData.SLEEP_SET_TASK_IDS)
-        addGoalSet(Goal.MOOD, SeedData.MOOD_SET_TASK_IDS)
-        addGoalSet(Goal.STRESS, SeedData.CALM_SET_TASK_IDS)
-        addGoalSet(Goal.ENERGY, SeedData.MOMENTUM_SET_TASK_IDS)
-        addGoalSet(Goal.CONNECTION, SeedData.CONNECTION_SET_TASK_IDS)
-        addGoalSet(Goal.PHYSICAL_HEALTH, SeedData.MOVEMENT_SET_TASK_IDS)
+        addGoalSet(Goal.SLEEP, TaskIds.SLEEP_SET_TASK_IDS)
+        addGoalSet(Goal.MOOD, TaskIds.MOOD_SET_TASK_IDS)
+        addGoalSet(Goal.STRESS, TaskIds.CALM_SET_TASK_IDS)
+        addGoalSet(Goal.ENERGY, TaskIds.MOMENTUM_SET_TASK_IDS)
+        addGoalSet(Goal.CONNECTION, TaskIds.CONNECTION_SET_TASK_IDS)
+        addGoalSet(Goal.PHYSICAL_HEALTH, TaskIds.MOVEMENT_SET_TASK_IDS)
 
         // Prioritise: goal-linked sets first (in the order the user chose their up-to-two goals),
         // then everything else that was flagged by a plain survey answer.
@@ -63,7 +62,7 @@ object ChecklistGenerator {
         }
 
         for (candidate in ordered) {
-            if (result.size + candidate.taskIds.size > CHECKLIST_CAP) continue
+            if (result.size + candidate.taskIds.size > cap) continue
             result += candidate.taskIds
         }
 
@@ -74,7 +73,7 @@ object ChecklistGenerator {
     /** Pain: A lot - drop vigorous Movement-set tasks and add the gentle alternative instead. */
     private fun applyPainModifier(taskIds: LinkedHashSet<Int>, pain: PainLevel) {
         if (pain != PainLevel.A_LOT) return
-        SeedData.VIGOROUS_MOVEMENT_TASK_IDS.forEach { taskIds.remove(it) }
-        taskIds += SeedData.TASK_MOVE_GENTLY_WITH_PAIN
+        TaskIds.VIGOROUS_MOVEMENT_TASK_IDS.forEach { taskIds.remove(it) }
+        taskIds += TaskIds.TASK_MOVE_GENTLY_WITH_PAIN
     }
 }

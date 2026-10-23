@@ -77,7 +77,7 @@ private fun noteFailure(error: Exception) {
  * waiting on, such as signing in.
  */
 internal fun postForResponse(url: String, json: JSONObject, alwaysTry: Boolean = false): ApiResponse? {
-    if (!alwaysTry && serverRecentlyUnreachable()) return null
+    if (!alwaysTry && serverRecentlyUnreachable()) return noteSkipped(url)
     return try {
         var (connection, body) = postJson(url, json)
         var responseCode = connection.responseCode
@@ -94,6 +94,8 @@ internal fun postForResponse(url: String, json: JSONObject, alwaysTry: Boolean =
         }
 
         connection.disconnect()
+        // The server answered, so it is reachable again: stop skipping requests.
+        unreachableUntil = Long.MIN_VALUE
         // Bodies are not logged: they can hold session tokens and personal details.
         Log.d(TAG, "POST $url -> $responseCode")
         ApiResponse(responseCode, body)
@@ -102,6 +104,12 @@ internal fun postForResponse(url: String, json: JSONObject, alwaysTry: Boolean =
         noteFailure(error)
         null
     }
+}
+
+/** Logs a request skipped because the server couldn't be reached moments ago, so it doesn't vanish silently. */
+private fun noteSkipped(url: String): ApiResponse? {
+    Log.w(TAG, "POST $url skipped: the server couldn't be reached moments ago")
+    return null
 }
 
 /**

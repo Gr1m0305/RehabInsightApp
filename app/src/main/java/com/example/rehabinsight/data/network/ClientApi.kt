@@ -36,8 +36,8 @@ internal fun postJson(urlString: String, json: JSONObject): Pair<HttpURLConnecti
     return connection to body
 }
 
+/** Creates a Client row. The server puts them with the first admin account, as the app has no way to choose one. */
 fun signUpClient(
-    adminId: Int,
     firstName: String,
     lastName: String,
     email: String,
@@ -46,7 +46,6 @@ fun signUpClient(
 ): SignUpResult {
     return try {
         val json = JSONObject().apply {
-            put("admin_id", adminId)
             put("first_name", firstName)
             put("last_name", lastName)
             put("email", email)
@@ -78,17 +77,7 @@ fun signUpClient(
             return responseCode to body
         }
 
-        var (responseCode, body) = send()
-
-        // admin_id is Client's only foreign key, so this refusal means the database has no Admin
-        // row with that id. Rather than turn the person away, the account is made without one.
-        if (responseCode !in 200..299 && "foreign key constraint failed" in body.orEmpty().lowercase()) {
-            Log.w("SIGNUP_TEST", "No Admin $adminId on the server; creating the client without an admin")
-            json.remove("admin_id")
-            val retried = send()
-            responseCode = retried.first
-            body = retried.second
-        }
+        val (responseCode, body) = send()
 
         if (responseCode in 200..299) {
             val obj = JSONObject(body ?: "{}")
@@ -273,7 +262,7 @@ fun fetchClientProfile(sessionToken: String): Client? {
 }
 
 /**
- * The clients an admin looks after. The server checks the admin's email and password on this
+ * Every client: any admin can see them all. The server checks the admin's email and password on this
  * call as on every admin call, so [accepted] also says whether they are right.
  */
 data class AdminClients(

@@ -49,25 +49,25 @@ object GuidanceEngine {
 
         // Low motivation is a hard override: one thing, not four.
         if (isConcerning(checkIn.motivation)) {
-            val only = keep(SeedData.TASK_TWO_MINUTE_TASK)
+            val only = keep(TaskIds.TASK_TWO_MINUTE_TASK)
             if (only.isNotEmpty()) return only
         }
 
         val result = LinkedHashSet<Int>()
 
         if (isConcerning(checkIn.pain)) {
-            result += keep(SeedData.TASK_MOVE_GENTLY_WITH_PAIN)
-            result += keep(SeedData.TASK_THREE_GRATITUDES, SeedData.TASK_MESSAGE_SOMEONE).take(1)
+            result += keep(TaskIds.TASK_MOVE_GENTLY_WITH_PAIN)
+            result += keep(TaskIds.TASK_THREE_GRATITUDES, TaskIds.TASK_MESSAGE_SOMEONE).take(1)
         }
         if (isConcerning(checkIn.stress)) {
-            result += keep(SeedData.TASK_SLOW_BREATHING, SeedData.TASK_10_MIN_WALK_CALM)
+            result += keep(TaskIds.TASK_SLOW_BREATHING, TaskIds.TASK_10_MIN_WALK_CALM)
         }
         if (isConcerning(checkIn.sleep)) {
-            result += keep(SeedData.TASK_MORNING_DAYLIGHT, SeedData.TASK_WIND_DOWN_ROUTINE)
+            result += keep(TaskIds.TASK_MORNING_DAYLIGHT, TaskIds.TASK_WIND_DOWN_ROUTINE)
         }
         if (isConcerning(checkIn.mood) && result.size < maxTasks) {
-            result += keep(SeedData.TASK_THREE_GRATITUDES).take(1)
-            result += keep(SeedData.TASK_TWO_MINUTE_TASK).take(1)
+            result += keep(TaskIds.TASK_THREE_GRATITUDES).take(1)
+            result += keep(TaskIds.TASK_TWO_MINUTE_TASK).take(1)
         }
         if (isConcerning(checkIn.energy) && result.size < maxTasks) {
             val shortest = activeTaskIds

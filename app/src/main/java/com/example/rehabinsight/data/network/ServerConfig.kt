@@ -11,9 +11,10 @@ const val SERVER_BASE_URL: String = "http://10.0.2.2:8000"
  * are. An admin's calls carry admin_email and admin_password instead: the server has no admin
  * session, so it checks those on every request.
  *
- * The server has no calls for the client to add or change their own Task or Client_Task rows,
- * or to read Task_Category, Task_Rule, Question_Template or Universal_App_Setting, so the app
- * keeps those on the device, starting from its built-in library.
+ * Everything the app shows comes from these calls: it holds no built-in rows of its own. The
+ * server's Test/Tests.py fills a new database with the categories, articles, task library,
+ * questions, milestones and settings. The server has no calls for the client to add or change
+ * their own Task or Client_Task rows, so those stay on the device.
  */
 
 // Client, Client_Session
@@ -26,6 +27,9 @@ const val CLIENT_CHANGE_PASSWORD_URL: String = "$SERVER_BASE_URL/api/client/chan
 // Not on the server since it was re-cloned on 2026-10-23; until they're back, a 404 tells the client to ask their clinician.
 const val CLIENT_FORGOT_PASSWORD_URL: String = "$SERVER_BASE_URL/api/client/forgot-password"
 const val CLIENT_RESET_PASSWORD_URL: String = "$SERVER_BASE_URL/api/client/reset-password"
+
+// Universal_App_Setting
+const val APP_SETTINGS_URL: String = "$SERVER_BASE_URL/api/daily-checkin/settings"
 
 // Daily_Question, Daily_Checkin, Response, Category
 const val DAILY_CHECKIN_COMPLETED_TODAY_URL: String = "$SERVER_BASE_URL/api/daily-checkin/completed-today"
@@ -49,10 +53,12 @@ const val STREAK_MILESTONES_URL: String = "$SERVER_BASE_URL/api/daily-checkin/st
 // Article
 const val ARTICLES_URL: String = "$SERVER_BASE_URL/api/articles/get"
 
-// Admin dashboard: the admin's clients and their progress, the Task library, and assigning tasks
+// Admin dashboard: every client and their progress, the Task library, and assigning tasks
 const val ADMIN_CLIENTS_URL: String = "$SERVER_BASE_URL/api/admin/clients"
 const val ADMIN_CLIENT_TASKS_URL: String = "$SERVER_BASE_URL/api/admin/tasks/client"
 const val ADMIN_CLIENT_REPORT_URL: String = "$SERVER_BASE_URL/api/admin/reports/client"
+const val ADMIN_USAGE_REPORT_URL: String = "$SERVER_BASE_URL/api/admin/reports/usage"
+const val ADMIN_CATEGORIES_URL: String = "$SERVER_BASE_URL/api/admin/categories"
 const val ADMIN_TASKS_URL: String = "$SERVER_BASE_URL/api/admin/tasks"
 const val ADMIN_TASK_CREATE_URL: String = "$SERVER_BASE_URL/api/admin/tasks/create"
 const val ADMIN_TASK_UPDATE_URL: String = "$SERVER_BASE_URL/api/admin/tasks/update"
